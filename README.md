@@ -53,7 +53,7 @@ a collection of Individuals, which in turn breed other Individuals
 
 _Fossil Record_:
 an archive of Individuals that did not survive, persisted to durable storage and used to limit ergodic behaviors in search --
-and also used for analysis after an algorithm terminates
+and also used for analysis after an algorithm run terminates
 
 _Framework_:
 a long-running process that maintains state for the system parameters and models parameters, obtains resources for the Executors, coordinates Executors through successive generations, and reports results; also handles all of the user interaction
@@ -105,7 +105,7 @@ The _framework_ is a long-running process that:
 * initializes the pool of Executors
 * iterates through the phases of each generation (selection/mutation, breeding, evaluation, reporting, shuffle)
 * restores state for itself or for any Executor after a failure
-* reports results at any point -- including final results after an algorithm terminates
+* reports results at any point -- including final results after an algorithm run terminates
 
 Resources allocated for each Executor must be sufficient to support a Population subset of _n_pop_ / _n_exe_ Individuals.
 
