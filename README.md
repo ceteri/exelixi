@@ -36,11 +36,11 @@ Some are randomly altered, based on a _mutation_ operation.
 Pairs of parents selected at random (with replacement) from the Population are used to "breed" new Individuals,
 based on a _crossover_ operation.
 
-The algorithm terminates when some user-defined condition is reached: 
+The algorithm terminates when the Population reaches some user-defined condition.
+For example: 
 * maximum number of generations
 * acceptable fitness for some Individual
 * threshold aggregate error for the Population overall
-* etc.
 
 
 ### Components
@@ -56,7 +56,7 @@ an archive of Individuals that did not survive, persisted to durable storage and
 and also used for analysis after an algorithm terminates
 
 _Framework_:
-a long-running process that maintains state for the system parameters and models parameters, obtains resources for the executors, coordinates executors through successive generations, and reports results; also handles all of the user interaction
+a long-running process that maintains state for the system parameters and models parameters, obtains resources for the Executors, coordinates Executors through successive generations, and reports results; also handles all of the user interaction
 
 _Executor_:
 a service running on a slave node in the cluster, responsible for computing a subset of the Population
@@ -93,7 +93,7 @@ The _framework_ is a long-running process that:
   * Python classes for customization
   * [HDFS] directory prefix
   * n_exe
-  * list of executor endpoints from [Marathon]
+  * list of Executor endpoints from [Marathon]
 * maintains _logical state_ (e.g., model parameters) in [Zookeeper]:
   * n_pop
   * n_gen
@@ -102,9 +102,9 @@ The _framework_ is a long-running process that:
   * selection_rate
   * mutation_rate
 * generates the [HDFS] directory prefix
-* initializes the pool of executors
+* initializes the pool of Executors
 * iterates through the phases of each generation (selection/mutation, breeding, evaluation, reporting, shuffle)
-* restores state for itself or for any executor after a failure
+* restores state for itself or for any Executor after a failure
 * reports results at any point -- including final results after an algorithm terminates
 
 
@@ -113,11 +113,11 @@ The _framework_ is a long-running process that:
 An _executor_ is a service running on a [Apache Mesos] slave that:
 * implements a simple cache backed by [HDFS]
 * provides a lookup service for the feature space vs. fitness of known attempts
+* persists serialized Individuals to durable storage
 * generates a pool of "live" Individuals at initialization or recovery
 * maintains "live" Individuals in memory
-* persists serialized Individuals to durable storage
 * calculates a partial histogram for the distribution of fitness
-* shuffles the local population among neighboring executors
+* shuffles the local Population among neighboring Executors
 * applies a filter to "live" Individuals to select parents for the next generation
 * handles mutation, breeding, and evaluation of "live" Individuals
 
@@ -132,11 +132,11 @@ e.g., append-only updates to [HDFS], which can be used to reconstruct state foll
 Also, the algorithm is tolerant of several factors that often hinder distributed systems:
 * _eventual consistency_ in the durable storage
 * _race conditions_ in the lookup of Individuals (having some duplicates/overlap adds minor performance overhead)
-* _data loss_ of partial solutions (e.g., when an executor fails)
+* _data loss_ of partial solutions (e.g., when an Executor fails)
 
-In the latter case, when an executor process is lost, the framework can simply launch another executor on the cluster 
+In the latter case, when an Executor process is lost, the Framework can simply launch another Executor on the cluster 
 (via [Marathon]) and have it generate new Individuals.
-That adds another stochastic component to the search, and in some cases may even accelerate identifying better solutions.
+That contingency adds another stochastic component to the search, and in some cases may help accelerate evolution.
 
 
 [Apache Mesos]: http://mesos.apache.org/
