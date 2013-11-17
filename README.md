@@ -122,10 +122,10 @@ An _executor_ is a service running on a [Apache Mesos] slave that:
 * handles mutation, breeding, and evaluation of "live" Individuals
 
 
-### Distributed Systems Notes
+### Observations about Distributed Systems
 
 Note that feature set serialization (key construction) and fitness function calculation only need to be performed once per Individual.
-So there is no "state" per se in the Individuals, other than the existence of their feature set and fitness evaluation.
+In other words, there is no mutable "state" in the Individuals, if mutation is considered as replacement.
 This allows for _idempotence_ in the overall data collection,
 e.g., append-only updates to [HDFS], which can be used to reconstruct state following a node or process failure.
 
