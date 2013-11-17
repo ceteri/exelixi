@@ -20,7 +20,7 @@ and have an important sub-class of [genetic programming] which is used to synthe
 
 Effectively, a [GA] can be applied for partial automation of "think out of the box" ideation in preliminary design.
 While the candidate solutions obtained from a [GA] may not be used directly,
-they tend inform domain experts how to derive novel design from _first principles_, thereby accelerating iterations substantially.
+they inform domain experts how to derive novel design from _first principles_, thereby accelerating iterations substantially.
 In terms of relationship to [machine learning], this approach approximates a [stochastic gradient descent] where
 the parameter space is quite large and a differentiable objective function may not be immediately apparent.
 
