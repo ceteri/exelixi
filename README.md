@@ -9,17 +9,50 @@ while leveraging the wealth of available Python analytics packages.
 
 
 ## Background
-### Component Definitions
+
+### Overview
+
+A [GA][genetic algorithm] is a search heuristic that mimics the process of natural selection in biological evolution.
+This approach is used to generate candidate solutions for optimization and search problems,
+especially in cases where the parameter space is large and complex.
+Note that [genetic algorithms] belong to a larger class of [evolutionary algorithms], 
+and have an important sub-class of [genetic programming] used to synthesize computer programs that perform a user-defined task.
+
+Effectively, a [GA] can be applied for partial automation of "think out of the box" ideation in preliminary design.
+While the "near-optimal" candidate solutions obtained from a [GA] may not be used directly,
+they tend inform domain experts how to derive novel design from _first principles_, thereby accelerating iterations substantially.
+In terms of relationship to [machine learning], this approach approximates a [stochastic gradient descent] where
+the parameter space is quite large and a differentiable objective function may not be immediately apparent.
+
+In a [GA], a _Population_ of candidate solutions (called _Individuals_) to an optimization problem gets evolved toward improved solutions.
+Each candidate solution has a _feature set_ -- i.e., its "chromosomes", if you will -- which can be altered and recominbed.
+The _fitness_ for each Individual gets evaluated (or approximated) using a _fitness function_ applied to its feature set.
+Evolution starts with randomly generated Individuals, then iterates through successive _generations_.
+During each generation, a stochastic process called _selection_ preserves the better "fit" Individuals as _parents_ for the next generation.
+Some are randomly altered, based on a _mutation_ operation.
+Pairs of parents selected at random (with replacement) from the Population are used to "breed" new Individuals, based on a _crossover_ operation.
+The algorithm terminates when some user-defined condition is reached: a maximum number of generations, a satisfactory fitness level for some Individual, a threshold aggregate error for the Population overall, etc.
+
+
+### Components
 
 _Individual_:
-state is represented by a feature set and a fitness value obtained by applying a fitness function to that feature set
+an candidate solution, represented by a feature set plus a fitness value obtained by applying a fitness function to that feature set
 
 _Population_:
-a collection of Individuals, which breed other Individuals
+a collection of Individuals, which in turn breed other Individuals
 
 _Fossil Record_:
-an archive of Individuals which did not survive, persisted to durable storage and used to limit ergodic behaviors in search --
-and for analysis after an algorithm terminates
+an archive of Individuals that did not survive, persisted to durable storage and used to limit ergodic behaviors in search --
+and also used for analysis after an algorithm terminates
+
+_Framework_:
+a long-running process that maintains state for the system parameters and models parameters, obtains resources for the executors, coordinates executors through successive generations, and reports results; also handles all of the user interaction
+
+_Executor_:
+a service running on a slave node in the cluster
+
+foo bar
 
 
 ## Implementation
@@ -83,7 +116,7 @@ An _executor_ is a service running on a [Apache Mesos] slave that:
 * handles mutation, breeding, and evaluation of "live" Individuals
 
 
-### Design Notes
+### Distributed Systems Notes
 
 Note that feature set serialization (key construction) and fitness function calculation only need to be performed once per Individual.
 So there is no "state" per se in the Individuals, other than the existence of their feature set and fitness evaluation.
@@ -97,13 +130,17 @@ Also, the algorithm is tolerant of several factors that often hinder distributed
 
 In the latter case, when an executor process is lost, the framework can simply launch another executor on the cluster 
 (via [Marathon]) and have it generate new Individuals.
-That adds another stochastic component to the search, and in some cases may even accelerate finding near-optimal solutions.
+That adds another stochastic component to the search, and in some cases may even accelerate identifying better solutions.
 
 
-[Apache Mesos]: http://mesos.apache.org/ "Apache Mesos"
-[GA]: http://en.wikipedia.org/wiki/Genetic_algorithm "Genetic Algorithms"
-[HDFS]: http://hadoop.apache.org/ "HDFS"
-[JSON]: http://www.json.org/ "JSON"
-[Marathon]: https://github.com/mesosphere/marathon "Marathon"
-[Zookeeper]: http://zookeeper.apache.org/ "Apache Zookeeper"
-[genetic algorithms]: http://en.wikipedia.org/wiki/Genetic_algorithm "Genetic Algorithms"
+[Apache Mesos]: http://mesos.apache.org/
+[GA]: http://en.wikipedia.org/wiki/Genetic_algorithm
+[HDFS]: http://hadoop.apache.org/
+[JSON]: http://www.json.org/
+[Marathon]: https://github.com/mesosphere/marathon
+[Zookeeper]: http://zookeeper.apache.org/
+[evolutionary algorithms]: http://en.wikipedia.org/wiki/Evolutionary_algorithm
+[genetic algorithms]: http://en.wikipedia.org/wiki/Genetic_algorithm
+[genetic programming]: http://en.wikipedia.org/wiki/Genetic_programming
+[machine learning]: http://en.wikipedia.org/wiki/Machine_learning
+[stochastic gradient descent]: http://en.wikipedia.org/wiki/Stochastic_gradient_descent
