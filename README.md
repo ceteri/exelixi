@@ -3,8 +3,8 @@
 *Exelixi* is a distributed framework for running [genetic algorithms] at scale.
 The framework is based on [Apache Mesos] and the code is mostly implemented in Python.
 
-On the one hand, this project provides a tutorial that shows how to build distributed frameworks in [Apache Mesos].
-On the other hand, this implements a general-purpose [GA] platform that emphasizes scalability and fault tolerance,
+On the one hand, this project provides a tutorial for building distributed frameworks in [Apache Mesos].
+On the other hand, it provides a general-purpose [GA] platform that emphasizes _scalability_ and _fault tolerance_,
 while leveraging the wealth of available Python analytics packages.
 
 
@@ -12,26 +12,35 @@ while leveraging the wealth of available Python analytics packages.
 
 ### Overview
 
-A [GA][genetic algorithm] is a search heuristic that mimics the process of natural selection in biological evolution.
+In general a [GA] is a search heuristic that mimics the process of natural selection in biological evolution.
 This approach is used to generate candidate solutions for optimization and search problems,
 especially in cases where the parameter space is large and complex.
 Note that [genetic algorithms] belong to a larger class of [evolutionary algorithms], 
-and have an important sub-class of [genetic programming] used to synthesize computer programs that perform a user-defined task.
+and have an important sub-class of [genetic programming] which is used to synthesize computer programs that perform a user-defined task.
 
 Effectively, a [GA] can be applied for partial automation of "think out of the box" ideation in preliminary design.
-While the "near-optimal" candidate solutions obtained from a [GA] may not be used directly,
+While the candidate solutions obtained from a [GA] may not be used directly,
 they tend inform domain experts how to derive novel design from _first principles_, thereby accelerating iterations substantially.
 In terms of relationship to [machine learning], this approach approximates a [stochastic gradient descent] where
 the parameter space is quite large and a differentiable objective function may not be immediately apparent.
 
+### Operation
+
 In a [GA], a _Population_ of candidate solutions (called _Individuals_) to an optimization problem gets evolved toward improved solutions.
 Each candidate solution has a _feature set_ -- i.e., its "chromosomes", if you will -- which can be altered and recominbed.
 The _fitness_ for each Individual gets evaluated (or approximated) using a _fitness function_ applied to its feature set.
+
 Evolution starts with randomly generated Individuals, then iterates through successive _generations_.
-During each generation, a stochastic process called _selection_ preserves the better "fit" Individuals as _parents_ for the next generation.
+During each generation, a stochastic process called _selection_ preserves the better fit Individuals as _parents_ for the next generation.
 Some are randomly altered, based on a _mutation_ operation.
-Pairs of parents selected at random (with replacement) from the Population are used to "breed" new Individuals, based on a _crossover_ operation.
-The algorithm terminates when some user-defined condition is reached: a maximum number of generations, a satisfactory fitness level for some Individual, a threshold aggregate error for the Population overall, etc.
+Pairs of parents selected at random (with replacement) from the Population are used to "breed" new Individuals,
+based on a _crossover_ operation.
+
+The algorithm terminates when some user-defined condition is reached: 
+* maximum number of generations
+* acceptable fitness for some Individual
+* threshold aggregate error for the Population overall
+* etc.
 
 
 ### Components
@@ -50,9 +59,7 @@ _Framework_:
 a long-running process that maintains state for the system parameters and models parameters, obtains resources for the executors, coordinates executors through successive generations, and reports results; also handles all of the user interaction
 
 _Executor_:
-a service running on a slave node in the cluster
-
-foo bar
+a service running on a slave node in the cluster, responsible for computing a subset of the Population
 
 
 ## Implementation
@@ -67,11 +74,10 @@ First, subclass the _Individual_ class to customize the following operations:
 * calculate (or approximate) a fitness function
 
 Individuals get represented as key/value pairs.
-The value consists of a tuple (fitness value, generation) and the key is constructed from a feature set. 
+The value consists of a tuple <code>(fitness value, generation)</code> and the key is constructed from a feature set. 
 
-To construct a key, a feature set is expressed as an JSON chunk serialized by being compressed and converted into hexadecimal ASCII armor.
-This ASCII string is then split into N-character chunks.
-These chunks define a path in [HDFS] for persisting the Individual in the fossil record.
+To construct a key, a feature set is expressed as an [JSON] chunk serialized by being compressed and converted into hexadecimal ASCII armor.
+The resulting string is split into N-character chunks, which define a path in [HDFS] for persisting the Individual in the Fossil Record.
 
 Let's consider how to store an Individual in [HDFS].
 Given some UUID as a job's unique prefix (e.g., "FE92A") and a specific key (e.g., "E45F", "BC19", "234D"), 
