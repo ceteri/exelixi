@@ -101,6 +101,8 @@ The _framework_ is a long-running process that:
   * *selection_rate*: fraction of "most fit" Individuals selected as parents in each generation
   * *diversity_rate*: random variable for selecting "less fit" Individuals retained for diversity
   * *mutation_rate*: random variable for applying mutation to an Individual retained for diversity
+  * *limit*: a threshold used for testing the terminating condition
+  * *resolution*: number of decimal places in fitness values used to construct the _fitness histogram_
 * generates the [HDFS] directory prefix
 * initializes the pool of Executors
 * iterates through the phases of each generation (selection/mutation, breeding, evaluation, reporting, shuffle)
