@@ -3,8 +3,12 @@
 *Exelixi* is a distributed framework for running [genetic algorithms] at scale.
 The framework is based on [Apache Mesos] and the code is mostly implemented in Python.
 
+On the one hand, this project provides a tutorial that shows how to build distributed frameworks in [Apache Mesos].
+On the other hand, this implements a general-purpose [GA] platform that emphasizes scalability and fault tolerance,
+while leveraging the wealth of available Python analytics packages.
 
-## System Architecture
+
+## Background
 ### Component Definitions
 
 _Individual_:
@@ -16,15 +20,17 @@ a collection of Individuals, which breed other Individuals.
 _Fossil Record_:
 an archive of Individuals which did not survive, persisted to durable storage and used to limit ergodic behaviors.
 
-### Implementation For Scalability
 
-To implement a GA in Exelixi, simply extend two classes in Python.
+## Implementation
+### Design For Scalability
+
+To implement a [GA] in Exelixi, simply extend two classes in Python.
 First, subclass the _Individual_ class to customize the following operations:
- * randomly generate a feature set
- * handle codex for serializing a feature set
- * mutate a feature set
- * breed a pair of parents to produce a child
- * calculate (or approximate) a fitness function
+* randomly generate a feature set
+* handle codex for serializing a feature set
+* mutate a feature set
+* breed a pair of parents to produce a child
+* calculate (or approximate) a fitness function
 
 Individuals get represented as key/value pairs.
 The value consists of a tuple (fitness value, generation) and the key is constructed from a feature set. 
@@ -43,21 +49,26 @@ This allows for idempotence in the overall data collection.
 e.g., append-only updates to [HDFS], which can be used to reconstruct state following a node or process failure.
 
 
-## Distributed Framework
 ### Framework
 
 The _framework_ is a long-running process that:
-* maintains operational state in [Zookeeper]
-  * n_exe
-  * [HDFS] directory prefix
+* maintains _operational state_ (e.g., system parameters) in [Zookeeper]
   * Python classes for customization
-  * list of executor endpoints
-* maintains logical state in [Zookeeper]: n_pop, n_gen, current_gen, retention_rate, selection_rate, mutation_rate
+  * [HDFS] directory prefix
+  * n_exe
+  * list of executor endpoints from [Marathon]
+* maintains _logical state_ (e.g., model parameters) in [Zookeeper]:
+  * n_pop
+  * n_gen
+  * current_gen
+  * retention_rate
+  * selection_rate
+  * mutation_rate
 * generates the [HDFS] directory prefix
 * initializes the pool of executors
-* iterates through generations (selection, mutation, breeding, evaluation, reporting, shuffle)
-* reports results at any point -- even after generations have completed
+* iterates through the phases of each generation (selection/mutation, breeding, evaluation, reporting, shuffle)
 * restores state for itself or for any executor after a failure
+* reports results at any point -- including final results after the generations have completed
 
 
 ### Executor
@@ -75,6 +86,8 @@ An _executor_ is a service running on a Mesos slave that:
 
 
 [Apache Mesos]: http://mesos.apache.org/ "Apache Mesos"
+[GA]: http://en.wikipedia.org/wiki/Genetic_algorithm "Genetic algorithms"
 [HDFS]: http://hadoop.apache.org/ "HDFS"
+[Marathon]: https://github.com/mesosphere/marathon "Marathon"
 [Zookeeper]: http://zookeeper.apache.org/ "Apache Zookeeper"
 [genetic algorithms]: http://en.wikipedia.org/wiki/Genetic_algorithm "Genetic algorithms"
