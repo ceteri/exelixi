@@ -74,7 +74,7 @@ First, subclass the _Individual_ class to customize the following operations:
 * calculate (or approximate) a fitness function
 
 Individuals get represented as key/value pairs.
-The value consists of a tuple <code>(fitness value, generation)</code> and the key is constructed from a feature set. 
+The value consists of a tuple <code>[fitness value, generation]</code> and the key is constructed from a feature set. 
 
 To construct a key, a feature set is expressed as an [JSON] chunk serialized by being compressed and converted into hexadecimal ASCII armor.
 The resulting string is split into N-character chunks, which define a path in [HDFS] for persisting the Individual in the Fossil Record.
