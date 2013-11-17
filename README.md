@@ -12,13 +12,14 @@ while leveraging the wealth of available Python analytics packages.
 ### Component Definitions
 
 _Individual_:
-state is represented by a feature set and a fitness value obtained by applying a fitness function to that feature set.
+state is represented by a feature set and a fitness value obtained by applying a fitness function to that feature set
 
 _Population_:
-a collection of Individuals, which breed other Individuals.
+a collection of Individuals, which breed other Individuals
 
 _Fossil Record_:
-an archive of Individuals which did not survive, persisted to durable storage and used to limit ergodic behaviors.
+an archive of Individuals which did not survive, persisted to durable storage and used to limit ergodic behaviors in search --
+and for analysis after an algorithm terminates
 
 
 ## Implementation
@@ -27,7 +28,7 @@ an archive of Individuals which did not survive, persisted to durable storage an
 To implement a [GA] in Exelixi, simply extend two classes in Python.
 First, subclass the _Individual_ class to customize the following operations:
 * randomly generate a feature set
-* handle codex for serializing a feature set
+* handle codex for serializing/deserializing a feature set
 * mutate a feature set
 * breed a pair of parents to produce a child
 * calculate (or approximate) a fitness function
@@ -39,14 +40,11 @@ To construct a key, a feature set is expressed as an JSON chunk serialized by be
 This ASCII string is then split into N-character chunks.
 These chunks define a path in [HDFS] for persisting the Individual in the fossil record.
 
-Let's consider how to store an Individual in [HDFS], given some UUID as a job's unique prefix (e.g., "FE92A") and a specific key (e.g., "E45F", "BC19", "234D"), plus a fitness value (e.g., 0.5654) and generation number (e.g., 231)
-This particular Individual would be represented as the pair:
+Let's consider how to store an Individual in [HDFS].
+Given some UUID as a job's unique prefix (e.g., "FE92A") and a specific key (e.g., "E45F", "BC19", "234D"), 
+plus a fitness value (e.g., 0.5654) and generation number (e.g., 231), this Individual would be represented as the pair:
 
     hdfs://FE92A/E45F/BC19/234D, [0.5654, 231]
-
-Note that feature set serialization (i.e., construction of a key) and fitness function calculation only need to be performed once.
-This allows for idempotence in the overall data collection.
-e.g., append-only updates to [HDFS], which can be used to reconstruct state following a node or process failure.
 
 
 ### Framework
@@ -68,12 +66,12 @@ The _framework_ is a long-running process that:
 * initializes the pool of executors
 * iterates through the phases of each generation (selection/mutation, breeding, evaluation, reporting, shuffle)
 * restores state for itself or for any executor after a failure
-* reports results at any point -- including final results after the generations have completed
+* reports results at any point -- including final results after an algorithm terminates
 
 
 ### Executor
 
-An _executor_ is a service running on a Mesos slave that:
+An _executor_ is a service running on a [Apache Mesos] slave that:
 * implements a simple cache backed by [HDFS]
 * provides a lookup service for the feature space vs. fitness of known attempts
 * generates a pool of "live" Individuals at initialization or recovery
@@ -85,9 +83,27 @@ An _executor_ is a service running on a Mesos slave that:
 * handles mutation, breeding, and evaluation of "live" Individuals
 
 
+### Design Notes
+
+Note that feature set serialization (key construction) and fitness function calculation only need to be performed once per Individual.
+So there is no "state" per se in the Individuals, other than the existence of their feature set and fitness evaluation.
+This allows for _idempotence_ in the overall data collection,
+e.g., append-only updates to [HDFS], which can be used to reconstruct state following a node or process failure.
+
+Also, the algorithm is tolerant of several factors that often hinder distributed systems:
+* _eventual consistency_ in the durable storage
+* _race conditions_ in the lookup of Individuals (having some duplicates/overlap adds minor performance overhead)
+* _data loss_ of partial solutions (e.g., when an executor fails)
+
+In the latter case, when an executor process is lost, the framework can simply launch another executor on the cluster 
+(via [Marathon]) and have it generate new Individuals.
+That adds another stochastic component to the search, and in some cases may even accelerate finding near-optimal solutions.
+
+
 [Apache Mesos]: http://mesos.apache.org/ "Apache Mesos"
-[GA]: http://en.wikipedia.org/wiki/Genetic_algorithm "Genetic algorithms"
+[GA]: http://en.wikipedia.org/wiki/Genetic_algorithm "Genetic Algorithms"
 [HDFS]: http://hadoop.apache.org/ "HDFS"
+[JSON]: http://www.json.org/ "JSON"
 [Marathon]: https://github.com/mesosphere/marathon "Marathon"
 [Zookeeper]: http://zookeeper.apache.org/ "Apache Zookeeper"
-[genetic algorithms]: http://en.wikipedia.org/wiki/Genetic_algorithm "Genetic algorithms"
+[genetic algorithms]: http://en.wikipedia.org/wiki/Genetic_algorithm "Genetic Algorithms"
