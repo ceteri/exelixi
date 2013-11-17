@@ -92,15 +92,15 @@ The _framework_ is a long-running process that:
 * maintains _operational state_ (e.g., system parameters) in [Zookeeper]
   * Python classes for customization
   * [HDFS] directory prefix
-  * _n_exe_: number of allocated Executors
+  * *n_exe*: number of allocated Executors
   * list of Executor endpoints from [Marathon]
 * maintains _logical state_ (e.g., model parameters) in [Zookeeper]:
-  * _n_pop_: maximum number of "live" Individuals at any point
-  * _n_gen_: maximum number of generations
-  * _current_gen_: current generation count
-  * _selection_rate_: fraction of "most fit" Individuals selected as parents in each generation
-  * _diversity_rate_: random variable for selecting "less fit" Individuals retained for diversity
-  * _mutation_rate_: random variable for applying mutation to an Individual retained for diversity
+  * *n_pop*: maximum number of "live" Individuals at any point
+  * *n_gen*: maximum number of generations
+  * *current_gen*: current generation count
+  * *selection_rate*: fraction of "most fit" Individuals selected as parents in each generation
+  * *diversity_rate*: random variable for selecting "less fit" Individuals retained for diversity
+  * *mutation_rate*: random variable for applying mutation to an Individual retained for diversity
 * generates the [HDFS] directory prefix
 * initializes the pool of Executors
 * iterates through the phases of each generation (selection/mutation, breeding, evaluation, reporting, shuffle)
