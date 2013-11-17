@@ -92,26 +92,28 @@ The _framework_ is a long-running process that:
 * maintains _operational state_ (e.g., system parameters) in [Zookeeper]
   * Python classes for customization
   * [HDFS] directory prefix
-  * n_exe
+  * _n_exe_: number of allocated Executors
   * list of Executor endpoints from [Marathon]
 * maintains _logical state_ (e.g., model parameters) in [Zookeeper]:
-  * n_pop
-  * n_gen
-  * current_gen
-  * retention_rate
-  * selection_rate
-  * mutation_rate
+  * _n_pop_: maximum number of "live" Individuals at any point
+  * _n_gen_: maximum number of generations
+  * _current_gen_: current generation count
+  * _selection_rate_: fraction of "most fit" Individuals selected as parents in each generation
+  * _diversity_rate_: random variable for selecting "less fit" Individuals retained for diversity
+  * _mutation_rate_: random variable for applying mutation to an Individual retained for diversity
 * generates the [HDFS] directory prefix
 * initializes the pool of Executors
 * iterates through the phases of each generation (selection/mutation, breeding, evaluation, reporting, shuffle)
 * restores state for itself or for any Executor after a failure
 * reports results at any point -- including final results after an algorithm terminates
 
+Resources allocated for each Executor must be sufficient to support a Population subset of _n_pop_ / _n_exe_ Individuals.
+
 
 ### Executor
 
 An _executor_ is a service running on a [Apache Mesos] slave that:
-* implements a simple cache backed by [HDFS]
+* implements an in-memory distributed cache backed by [HDFS] (with write behind)
 * provides a lookup service for the feature space vs. fitness of known attempts
 * persists serialized Individuals to durable storage
 * generates a pool of "live" Individuals at initialization or recovery
