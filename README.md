@@ -89,6 +89,7 @@ plus a fitness value (e.g., 0.5654) and generation number (e.g., 231), this Indi
 ### Framework
 
 The _framework_ is a long-running process that:
+* parses command-line options
 * maintains _operational state_ (e.g., system parameters) in [Zookeeper]
   * Python classes for customization
   * [HDFS] directory prefix
@@ -109,17 +110,17 @@ The _framework_ is a long-running process that:
 * restores state for itself or for any Executor after a failure
 * reports results at any point -- including final results after an algorithm run terminates
 
-Resources allocated for each Executor must be sufficient to support a Population subset of _n_pop_ / _n_exe_ Individuals.
+Resources allocated for each Executor must be sufficient to support a Population subset of *n_pop* / *n_exe* Individuals.
 
 
 ### Executor
 
 An _executor_ is a service running on a [Apache Mesos] slave that:
 * implements an in-memory distributed cache backed by [HDFS] (with write behind)
-* provides a lookup service for the feature space vs. fitness of known attempts
-* persists serialized Individuals to durable storage
 * generates a pool of "live" Individuals at initialization or recovery
 * maintains "live" Individuals in memory
+* provides a lookup service for the feature space vs. fitness of known attempts
+* persists serialized Individuals to durable storage
 * calculates a partial histogram for the distribution of fitness
 * shuffles the local Population among neighboring Executors
 * applies a filter to "live" Individuals to select parents for the next generation
