@@ -17,6 +17,11 @@
 
 
 from random import randint, random, sample
+import StringIO
+import binascii
+import gzip
+import json
+
 
 class Population (object):
     def __init__ (self, n_pop=10, n_gen=5, limit=0.0, resolution=3):
@@ -140,11 +145,20 @@ class Population (object):
     def report_summary (self):
         "report a summary of the evolution"
         for indiv in sorted(self.pop, key=lambda x: x.fitness, reverse=True):
-            print indiv.gen, sorted(indiv.features), "%f" % indiv.fitness
+            print indiv.gen, indiv.features, "%f" % indiv.fitness
+            print indiv.key
 
 
 class Individual (object):
+    ## singletons
     pop = None
+
+    ## feature set
+    target = 231
+    length = 5
+    min = 0
+    max = 100
+
 
     def __init__ (self, gen):
         "create a member of the population"
@@ -155,10 +169,23 @@ class Individual (object):
         self.is_alive = True
 
 
+    def serialize_features (self):
+        "create a unique, content-addressable key by serializing the feature set as a compressed hex string"
+        buf = StringIO.StringIO()
+        f = gzip.GzipFile(fileobj=buf, mode='w')
+        f.write(json.dumps(tuple(self.features)))
+        f.close()
+        return binascii.hexlify(buf.getvalue())
+
+
     @staticmethod
-    def get_key (features):
-        "determine a unique key for the given feature set"
-        return tuple(sorted(features))
+    def deserialize_features (hex):
+        "deserialize a feature set from a compressed hex string"
+        f = StringIO.StringIO()
+        f.write(binascii.unhexlify(hex))
+        f.seek(0)
+        buf = gzip.GzipFile(fileobj=f, mode='rb')
+        return json.loads(buf.readline())
 
 
     def calc_fitness (self):
@@ -170,9 +197,8 @@ class Individual (object):
     def populate (gen):
         "populate values for an Individual"
         indiv = Individual(gen)
-        indiv.features = [ randint(Individual.min, Individual.max) for x in xrange(Individual.length) ]
-
-        indiv.key = Individual.get_key(indiv.features)
+        indiv.features = sorted([ randint(Individual.min, Individual.max) for x in xrange(Individual.length) ])
+        indiv.key = indiv.serialize_features()
 
         if Individual.pop.is_novel(indiv.key):
             Individual.pop.uniq_d[indiv.key] = indiv
@@ -190,8 +216,8 @@ class Individual (object):
         mutated_features[pos_to_mutate] = randint(Individual.min, Individual.max)
 
         mutant = Individual(self.gen)
-        mutant.features = mutated_features
-        mutant.key = Individual.get_key(mutant.features)
+        mutant.features = sorted(mutated_features)
+        mutant.key = mutant.serialize_features()
 
         if Individual.pop.is_novel(mutant.key):
             Individual.pop.uniq_d[mutant.key] = self
@@ -204,9 +230,10 @@ class Individual (object):
     def breed (self, mate, gen):
         "breed with a mate to produce a child"
         half = len(self.features) / 2
+
         child = Individual(gen)
-        child.features = self.features[half:] + mate.features[:half]
-        child.key = Individual.get_key(child.features)
+        child.features = sorted(self.features[half:] + mate.features[:half])
+        child.key = child.serialize_features()
 
         if Individual.pop.is_novel(child.key):
             Individual.pop.uniq_d[child.key] = child
@@ -224,13 +251,7 @@ class Individual (object):
 
 
 if __name__=='__main__':
-    ## create a population of individuals
-    Individual.target = 231
-    Individual.length = 5
-    Individual.min = 0
-    Individual.max = 100
-
-    ## make initial population unique
+    ## create a population of unique individuals
     Individual.pop = Population(n_pop=20, n_gen=5, limit=1.0e-03)
     Individual.pop.populate()
 

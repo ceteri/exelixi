@@ -89,13 +89,13 @@ plus a fitness value (e.g., 0.5654) and generation number (e.g., 231), this Indi
 ### Framework
 
 The _framework_ is a long-running process that:
-* parses command-line options
+* parses command-line options from the user
 * maintains _operational state_ (e.g., system parameters) in [Zookeeper]
   * Python classes for customization
   * [HDFS] directory prefix
   * *n_exe*: number of allocated Executors
   * list of Executor endpoints from [Marathon]
-* maintains _logical state_ (e.g., model parameters) in [Zookeeper]:
+* receives _logical state_ (e.g., model parameters) from Python classes for customization
   * *n_pop*: maximum number of "live" Individuals at any point
   * *n_gen*: maximum number of generations
   * *current_gen*: current generation count
@@ -129,6 +129,9 @@ An _executor_ is a service running on a [Apache Mesos] slave that:
 
 ### Observations about Distributed Systems
 
+Effectively, a [GA] implements a stochastic process over a [content addressable memory], to optimize a convex search space.
+Given use of [HDFS] for distributed storage, then much of the architecture resembles a [distributed hash table] which tolerates data loss.
+
 Note that feature set serialization (key construction) and fitness function calculation only need to be performed once per Individual.
 In other words, there is no mutable "state" in the Individuals, if mutation is considered as replacement.
 This allows for _idempotence_ in the overall data collection,
@@ -150,6 +153,8 @@ That contingency adds another stochastic component to the search, and in some ca
 [JSON]: http://www.json.org/
 [Marathon]: https://github.com/mesosphere/marathon
 [Zookeeper]: http://zookeeper.apache.org/
+[content addressable memory]: http://en.wikipedia.org/wiki/Content-addressable_memory
+[distributed hash table]: http://en.wikipedia.org/wiki/Distributed_hash_table
 [evolutionary algorithms]: http://en.wikipedia.org/wiki/Evolutionary_algorithm
 [genetic algorithms]: http://en.wikipedia.org/wiki/Genetic_algorithm
 [genetic programming]: http://en.wikipedia.org/wiki/Genetic_programming
