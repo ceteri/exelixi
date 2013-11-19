@@ -74,36 +74,40 @@ First, subclass the _Individual_ class to customize the following operations:
 * calculate (or approximate) a fitness function
 
 Individuals get represented as key/value pairs.
-The value consists of a tuple <code>[fitness value, generation]</code> and the key is constructed from a feature set. 
+The value consists of a tuple <code>[fitness value, generation]</code> 
+and a unique key is constructed from a [SHA-3] digest of the JSON representing the feature set. 
 
-To construct a key, a feature set is expressed as an [JSON] chunk serialized by being compressed and converted into hexadecimal ASCII armor.
-The resulting string is split into N-character chunks, which define a path in [HDFS] for persisting the Individual in the Fossil Record.
+Let's consider how to persist an Individual in the Fossil Record given:
+* a [UUID] as a job's unique prefix, e.g., <code>048e9fae50c311e3a4cd542696d7e175</code>
+* a unique key, e.g., <code>BC19234D</code>
+* a fitness value, e.g., <code>0.5654</code>
+* a generation number, e.g., <code>231</code>
+* JSON representing a feature set, e.g., <code>(1, 5, 2)</code>
 
-Let's consider how to store an Individual in [HDFS].
-Given some UUID as a job's unique prefix (e.g., "FE92A") and a specific key (e.g., "E45F", "BC19", "234D"), 
-plus a fitness value (e.g., 0.5654) and generation number (e.g., 231), this Individual would be represented as the pair:
+In that case, the Individual would be represented as the pair:
 
-    hdfs://FE92A/E45F/BC19/234D, [0.5654, 231]
+    hdfs://048e9fae50c311e3a4cd542696d7e175/0b799066c39a673d84133a484c2bf9a6b55eae320e33e0cc7a4ade49, [0.5654, 231, [1, 5, 2]]
 
 
 ### Framework
 
 The _framework_ is a long-running process that:
 * parses command-line options from the user
+* generates a [UUID] for each attempted algorithm run
 * maintains _operational state_ (e.g., system parameters) in [Zookeeper]
-  * Python classes for customization
-  * [HDFS] directory prefix
+  * *prefix*: unique directory prefix in [HDFS] 
   * *n_exe*: number of allocated Executors
+  * *exe_url*: URL for customized Python classes tarball
   * list of Executor endpoints from [Marathon]
-* receives _logical state_ (e.g., model parameters) from Python classes for customization
+  * *current_gen*: current generation count
+* receives _logical state_ (e.g., model parameters) from customized Python classes
   * *n_pop*: maximum number of "live" Individuals at any point
   * *n_gen*: maximum number of generations
-  * *current_gen*: current generation count
+  * *limit*: a threshold used for testing the terminating condition
+  * *resolution*: number of decimal places in fitness values used to construct the _fitness histogram_
   * *selection_rate*: fraction of "most fit" Individuals selected as parents in each generation
   * *diversity_rate*: random variable for selecting "less fit" Individuals retained for diversity
   * *mutation_rate*: random variable for applying mutation to an Individual retained for diversity
-  * *limit*: a threshold used for testing the terminating condition
-  * *resolution*: number of decimal places in fitness values used to construct the _fitness histogram_
 * generates the [HDFS] directory prefix
 * initializes the pool of Executors
 * iterates through the phases of each generation (selection/mutation, breeding, evaluation, reporting, shuffle)
@@ -116,7 +120,7 @@ Resources allocated for each Executor must be sufficient to support a Population
 ### Executor
 
 An _executor_ is a service running on a [Apache Mesos] slave that:
-* implements an in-memory distributed cache backed by [HDFS] (with write behind)
+* implements an in-memory distributed cache backed by [HDFS] (with snapshots)
 * generates a pool of "live" Individuals at initialization or recovery
 * maintains "live" Individuals in memory
 * provides a lookup service for the feature space vs. fitness of known attempts
@@ -152,6 +156,8 @@ That contingency adds another stochastic component to the search, and in some ca
 [HDFS]: http://hadoop.apache.org/
 [JSON]: http://www.json.org/
 [Marathon]: https://github.com/mesosphere/marathon
+[SHA-3]: http://en.wikipedia.org/wiki/SHA-3
+[UUID]: http://tools.ietf.org/html/rfc4122.html
 [Zookeeper]: http://zookeeper.apache.org/
 [content addressable memory]: http://en.wikipedia.org/wiki/Content-addressable_memory
 [distributed hash table]: http://en.wikipedia.org/wiki/Distributed_hash_table
