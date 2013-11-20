@@ -104,9 +104,8 @@ The _framework_ is a long-running process that:
   * *n_pop*: maximum number of "live" Individuals at any point
   * *n_gen*: maximum number of generations
   * *limit*: a threshold used for testing the terminating condition
-  * *resolution*: number of decimal places in fitness values used to construct the _fitness histogram_
+  * *hist_granularity*: number of decimal places in fitness values used to construct the _fitness histogram_
   * *selection_rate*: fraction of "most fit" Individuals selected as parents in each generation
-  * *diversity_rate*: random variable for selecting "less fit" Individuals retained for diversity
   * *mutation_rate*: random variable for applying mutation to an Individual retained for diversity
 * generates the [HDFS] directory prefix
 * initializes the pool of Executors

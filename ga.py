@@ -29,25 +29,29 @@ from uuid import uuid1
 ## class definitions
 
 class Population (object):
-    def __init__ (self, indiv, prefix="/tmp/exelixi", n_pop=10, n_gen=5, limit=0.0, resolution=3):
-        self.indiv_class = indiv.__class__
+    def __init__ (self, indiv_instance, prefix="/tmp/exelixi", n_pop=10, n_gen=5, limit=0.0, hist_granularity=3):
+        self.indiv_class = indiv_instance.__class__
         self.prefix = prefix
         self.n_pop = n_pop
         self.n_gen = n_gen
         self.limit = limit
-        self.resolution = resolution
+
+        self._hist_granularity = hist_granularity
+        self._part_hist = {}
 
         self._uniq_dht = {}
         self._bf = BloomFilter(num_bytes=125, num_probes=14, iterable=[])
-        self._part_hist = {}
 
 
-    def populate (self, gen):
+    ######################################################################
+    ## Individual lifecycle within the local subset of the Population
+
+    def populate (self, current_gen):
         """initialize the population"""
-        for x in xrange(self.n_pop):
+        for _ in xrange(self.n_pop):
             # constructor pattern
             indiv = self.indiv_class()
-            indiv.populate(gen, indiv.generate_feature_set())
+            indiv.populate(current_gen, indiv.generate_feature_set())
 
             # add the generated Individual to the Population
             # failure semantics: must filter nulls from initial population
@@ -55,14 +59,15 @@ class Population (object):
 
 
     def reify (self, indiv):
-        """test/put a newly generated Individual to the dictionary for uniques"""
+        """test/add a newly generated Individual into the Population (birth)"""
 
         # NB: distribute this operation over the hash ring, through a remote queue
-        if not indiv.key in self._uniq_dht:
+        if not indiv.key in self._bf:
+            self._bf.update([indiv.key])
+
             # NB: potentially the most expensive operation, deferred until remote reification
             indiv.calc_fitness()
 
-            self._bf.update([indiv.key])
             self._uniq_dht[indiv.key] = indiv
             self._tally_hist(indiv, True)
 
@@ -71,9 +76,20 @@ class Population (object):
             return False
 
 
+    def dereify (self, indiv):
+        """remove an Individual from the Population (death)"""
+        if indiv.key in self._uniq_dht:
+            # only need to remove locally
+            del self._uniq_dht[indiv.key]
+            self._tally_hist(indiv, False)
+
+            # NB: serialize to disk (write behinds)
+            url = self._get_storage_path(indiv)
+
+
     def _tally_hist (self, indiv, increment):
         """tally counts for the partial histogram"""
-        bin = round(indiv.fitness, self.resolution)
+        bin = round(indiv.fitness, self._hist_granularity)
 
         if bin not in self._part_hist:
             self._part_hist[bin] = 0
@@ -85,7 +101,7 @@ class Population (object):
 
 
     def _get_bin_lower (self, selection_rate):
-        """determine bin threshold for parent selection filter"""
+        """determine bin lower bounds for the parent selection filter"""
         sum = 0
         break_next = False
 
@@ -105,27 +121,15 @@ class Population (object):
         return self.prefix + "/" + indiv.key
 
 
-    def remove_individual (self, indiv):
-        """dereify: remove Individual from the Population"""
-        if indiv.key in self._uniq_dht:
-            # remove locally
-            del self._uniq_dht[indiv.key]
-            self._tally_hist(indiv, False)
-
-            # NB: serialize to disk (write behinds)
-            url = self._get_storage_path(indiv)
-
-
-    def _add_diversity (self, gen, indiv, diversity_rate, mutation_rate):
-        """randomly add other individuals to promote genetic diversity"""
-        if diversity_rate > random():
-            if mutation_rate > random():
-                indiv.mutate(self, gen)
+    def _boost_diversity (self, current_gen, indiv, mutation_rate):
+        """randomly select other individuals and mutate them, to promote genetic diversity"""
+        if mutation_rate > random():
+            indiv.mutate(self, current_gen)
         else:
-            self.remove_individual(indiv)
+            self.dereify(indiv)
 
 
-    def _select_parents (self, gen, selection_rate=0.2, diversity_rate=0.05, mutation_rate=0.02):
+    def _select_parents (self, current_gen, selection_rate=0.2, mutation_rate=0.02):
         """select the parents for the next generation"""
         bin_lower = self._get_bin_lower(selection_rate)
         partition = map(lambda x: (x.fitness > bin_lower, x), self._uniq_dht.values())
@@ -135,26 +139,26 @@ class Population (object):
 
         # randomly select other individuals to promote genetic diversity, while removing the remnant
         for indiv in poor_fit:
-            self._add_diversity(gen, indiv, diversity_rate, mutation_rate)
+            self._boost_diversity(current_gen, indiv, mutation_rate)
 
         return self._uniq_dht.values()
 
 
-    def _run_generation (self, gen):
+    def run_generation (self, current_gen):
         """select/mutate/crossover parents to produce a new generation"""
-        parents = self._select_parents(gen, selection_rate=0.5)
+        parents = self._select_parents(current_gen, selection_rate=0.5)
 
-        for (f, m) in [ sample(parents, 2) for i in xrange(self.n_pop - len(parents)) ]:
-            f.breed(pop, gen, m)
+        for (f, m) in [ sample(parents, 2) for _ in xrange(self.n_pop - len(parents)) ]:
+            f.breed(pop, current_gen, m)
 
 
-    def _test_termination (self, gen):
+    def test_termination (self, current_gen):
         """evaluate the terminating condition for this generation and report progress"""
         # find the mean squared error (MSE) of fitness for a population
         mse = sum([ count * (1.0 - bin) ** 2.0 for bin, count in self._part_hist.items() ]) / float(self.n_pop)
 
         # report the progress for one generation
-        print gen, "%.2e" % mse, filter(lambda x: x[1] > 0, sorted(self._part_hist.items(), reverse=True))
+        print current_gen, "%.2e" % mse, filter(lambda x: x[1] > 0, sorted(self._part_hist.items(), reverse=True))
 
         # stop when a "good enough" solution is found
         return mse <= self.limit
@@ -162,10 +166,10 @@ class Population (object):
 
     def evolve (self):
         """iterate N times or until a 'good enough' solution is found"""
-        for gen in xrange(self.n_gen):
-            self._run_generation(gen)
+        for current_gen in xrange(self.n_gen):
+            self.run_generation(current_gen)
 
-            if self._test_termination(gen):
+            if self.test_termination(current_gen):
                 break
 
 
@@ -201,7 +205,7 @@ class Individual (object):
 
     def generate_feature_set (self):
         """generate a new feature set"""
-        return sorted([ randint(Individual.min, Individual.max) for x in xrange(Individual.length) ])
+        return sorted([ randint(Individual.min, Individual.max) for _ in xrange(Individual.length) ])
 
 
     def get_json_feature_set (self):
@@ -234,7 +238,7 @@ class Individual (object):
         # add the mutant Individual to the Population, but remove its prior self
         # failure semantics: ignore, mutation rate is approx upper bounds
         if pop.reify(mutant):
-            pop.remove_individual(self)
+            pop.dereify(self)
 
 
     def breed (self, pop, gen, mate):
