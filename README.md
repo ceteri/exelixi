@@ -95,14 +95,15 @@ The _framework_ is a long-running process that:
 * parses command-line options from the user
 * generates a [UUID] for each attempted algorithm run
 * maintains _operational state_ (e.g., system parameters) in [Zookeeper]
-  * *prefix*: unique directory prefix in [HDFS] 
+  * *prefix*: unique directory prefix in [HDFS] based on generated [UUID]
   * *n_exe*: number of allocated Executors
   * *exe_url*: URL for customized Python classes tarball
   * list of Executor endpoints from [Marathon]
   * *current_gen*: current generation count
 * receives _logical state_ (e.g., model parameters) from customized Python classes
-  * *n_pop*: maximum number of "live" Individuals at any point
   * *n_gen*: maximum number of generations
+  * *n_pop*: maximum number of "live" Individuals at any point
+  * *max_pop*: maximum number of Individuals ever
   * *term_limit*: a threshold used for testing the terminating condition
   * *hist_granularity*: number of decimal places in fitness values used to construct the _fitness histogram_
   * *selection_rate*: fraction of "most fit" Individuals selected as parents in each generation

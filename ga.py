@@ -23,7 +23,6 @@ from hashring import HashRing
 from hashlib import sha224
 from json import dumps
 from random import randint, random, sample
-from uuid import uuid1
 
 
 ######################################################################
@@ -137,7 +136,7 @@ class Population (object):
         parents = self._select_parents(current_gen, fitness_cutoff, mutation_rate)
 
         for (f, m) in [ sample(parents, 2) for _ in xrange(self.n_pop - len(parents)) ]:
-            f.breed(pop, current_gen, m)
+            f.breed(self, current_gen, m)
 
 
     def test_termination (self, current_gen):
@@ -235,25 +234,4 @@ class Individual (object):
 
 
 if __name__=='__main__':
-    ## Framework operations:
-
-    # generate a unique prefix
-    uuid = uuid1().hex
-    prefix = "/tmp/exelixi/%s" % uuid
-
-    # initialize a Population of unique Individuals at generation 0
-    pop = Population(Individual(), prefix=prefix, n_pop=20, term_limit=1.0e-03)
-    pop.populate(0)
-
-    # iterate N times or until a "good enough" solution is found
-    n_gen = 5
-
-    for current_gen in xrange(n_gen):
-        fitness_cutoff = pop.get_fitness_cutoff(selection_rate=0.2)
-        pop.next_generation(current_gen, fitness_cutoff, mutation_rate=0.02)
-
-        if pop.test_termination(current_gen):
-            break
-
-    # report summary
-    pop.report_summary()
+    pass
