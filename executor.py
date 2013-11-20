@@ -25,6 +25,8 @@ import sys
 ## class definitions
 
 class Executor (object):
+    # http://www.gevent.org/gevent.wsgi.html
+
     def __init__ (self, port=9311):
         self.server = wsgi.WSGIServer(('', port), self._response_handler)
 
@@ -84,7 +86,7 @@ if __name__=='__main__':
 
     # parse command line options
     port = int(sys.argv[1])
-    print 'Exelixi: executor service running on %d...' % port
+    print "Exelixi: executor service running on %d..." % port
 
     # launch service
     exe = Executor(port=port)

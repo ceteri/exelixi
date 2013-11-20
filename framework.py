@@ -26,7 +26,7 @@ import sys
 ## class definitions
 
 class Framework (object):
-    def __init__ (self, prefix="/tmp/exelixi/", n_gen=5):
+    def __init__ (self, prefix="/tmp/exelixi/", n_gen=9):
         # system parameters, for representing operational state
         self.uuid = uuid1().hex
         self.prefix = prefix + self.uuid
@@ -38,11 +38,14 @@ class Framework (object):
 if __name__=='__main__':
     ## Framework operations:
 
-    fra = Framework()
+    # parse command line options
+    print "Exelixi: framework launching..."
+
+    fra = Framework(n_gen=5)
     print fra.prefix
 
     # initialize a Population of unique Individuals at generation 0
-    pop = Population(Individual(), prefix=fra.prefix, n_pop=20, term_limit=1.0e-03)
+    pop = Population(Individual(), prefix=fra.prefix, n_pop=20, term_limit=1.0e-04)
     pop.populate(0)
 
     # iterate N times or until a "good enough" solution is found

@@ -120,7 +120,7 @@ class Population (object):
 
     def _select_parents (self, current_gen, fitness_cutoff, mutation_rate):
         """select the parents for the next generation"""
-        partition = map(lambda x: (x.fitness > fitness_cutoff, x), self._uniq_dht.values())
+        partition = map(lambda x: (x.fitness >= fitness_cutoff, x), self._uniq_dht.values())
         good_fit = map(lambda x: x[1], filter(lambda x: x[0], partition))
         poor_fit = map(lambda x: x[1], filter(lambda x: not x[0], partition))
 
