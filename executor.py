@@ -21,19 +21,6 @@ from gevent import wsgi, Greenlet
 import sys
 
 
-# config
-# persist
-# recover
-# stop
-# ring/init
-# ring/add
-# ring/del
-# pop/init
-# pop/hist
-# pop/iterate
-# pop/reify
-
-
 ######################################################################
 ## class definitions
 
@@ -51,6 +38,23 @@ class Executor (object):
         """stop the service"""
         print "Exelixi: executor service stopping... you can safely ignore any exceptions that follow."
         self.server.stop()
+
+
+    # REST endpoints TODO:
+    # config
+    # persist
+    # recover
+
+    # ring/init
+    # ring/add
+    # ring/del
+
+    # pop/init
+    # pop/hist
+    # pop/nextgen
+    # pop/reify
+    # pop/evict
+    # pop/report
 
 
     def _response_handler (self, env, start_response):
@@ -76,10 +80,12 @@ class Executor (object):
 
 
 if __name__=='__main__':
-    ## Executor:
+    ## Executor operations:
 
+    # parse command line options
     port = int(sys.argv[1])
     print 'Exelixi: executor service running on %d...' % port
 
+    # launch service
     exe = Executor(port=port)
     exe.start()

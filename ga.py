@@ -18,6 +18,7 @@
 
 
 from bloomfilter import BloomFilter
+from collections import Counter
 from hashring import HashRing
 from hashlib import sha224
 from json import dumps
@@ -29,15 +30,13 @@ from uuid import uuid1
 ## class definitions
 
 class Population (object):
-    def __init__ (self, indiv_instance, prefix="/tmp/exelixi", n_pop=10, n_gen=5, limit=0.0, hist_granularity=3):
+    def __init__ (self, indiv_instance, prefix="/tmp/exelixi", n_pop=11, term_limit=0.0, hist_granularity=3):
         self.indiv_class = indiv_instance.__class__
         self.prefix = prefix
         self.n_pop = n_pop
-        self.n_gen = n_gen
-        self.limit = limit
 
+        self._term_limit = term_limit
         self._hist_granularity = hist_granularity
-        self._part_hist = {}
 
         self._uniq_dht = {}
         self._bf = BloomFilter(num_bytes=125, num_probes=14, iterable=[])
@@ -67,45 +66,36 @@ class Population (object):
 
             # NB: potentially the most expensive operation, deferred until remote reification
             indiv.calc_fitness()
-
             self._uniq_dht[indiv.key] = indiv
-            self._tally_hist(indiv, True)
 
             return True
         else:
             return False
 
 
-    def dereify (self, indiv):
+    def evict (self, indiv):
         """remove an Individual from the Population (death)"""
         if indiv.key in self._uniq_dht:
             # only need to remove locally
             del self._uniq_dht[indiv.key]
-            self._tally_hist(indiv, False)
 
             # NB: serialize to disk (write behinds)
             url = self._get_storage_path(indiv)
 
 
-    def _tally_hist (self, indiv, increment):
-        """tally counts for the partial histogram"""
-        bin = round(indiv.fitness, self._hist_granularity)
-
-        if bin not in self._part_hist:
-            self._part_hist[bin] = 0
-
-        if increment:
-            self._part_hist[bin] += 1
-        else:
-            self._part_hist[bin] -= 1
+    def get_part_hist (self):
+        """tally counts for the partial histogram of the fitness distribution"""
+        d = dict(Counter([ round(indiv.fitness, self._hist_granularity) for indiv in self._uniq_dht.values() ])).items()
+        d.sort(reverse=True)
+        return d
 
 
-    def _get_bin_lower (self, selection_rate):
-        """determine bin lower bounds for the parent selection filter"""
+    def get_fitness_cutoff (self, selection_rate):
+        """determine fitness cutoff (bin lower bounds) for the parent selection filter"""
         sum = 0
         break_next = False
 
-        for bin, count in sorted(self._part_hist.items(), reverse=True):
+        for bin, count in self.get_part_hist():
             if break_next:
                 break
 
@@ -126,14 +116,12 @@ class Population (object):
         if mutation_rate > random():
             indiv.mutate(self, current_gen)
         else:
-            self.dereify(indiv)
+            self.evict(indiv)
 
 
-    def _select_parents (self, current_gen, selection_rate=0.2, mutation_rate=0.02):
+    def _select_parents (self, current_gen, fitness_cutoff, mutation_rate):
         """select the parents for the next generation"""
-        bin_lower = self._get_bin_lower(selection_rate)
-        partition = map(lambda x: (x.fitness > bin_lower, x), self._uniq_dht.values())
-
+        partition = map(lambda x: (x.fitness > fitness_cutoff, x), self._uniq_dht.values())
         good_fit = map(lambda x: x[1], filter(lambda x: x[0], partition))
         poor_fit = map(lambda x: x[1], filter(lambda x: not x[0], partition))
 
@@ -144,9 +132,9 @@ class Population (object):
         return self._uniq_dht.values()
 
 
-    def run_generation (self, current_gen):
+    def next_generation (self, current_gen, fitness_cutoff, mutation_rate):
         """select/mutate/crossover parents to produce a new generation"""
-        parents = self._select_parents(current_gen, selection_rate=0.5)
+        parents = self._select_parents(current_gen, fitness_cutoff, mutation_rate)
 
         for (f, m) in [ sample(parents, 2) for _ in xrange(self.n_pop - len(parents)) ]:
             f.breed(pop, current_gen, m)
@@ -155,22 +143,14 @@ class Population (object):
     def test_termination (self, current_gen):
         """evaluate the terminating condition for this generation and report progress"""
         # find the mean squared error (MSE) of fitness for a population
-        mse = sum([ count * (1.0 - bin) ** 2.0 for bin, count in self._part_hist.items() ]) / float(self.n_pop)
+        hist = self.get_part_hist()
+        mse = sum([ count * (1.0 - bin) ** 2.0 for bin, count in hist ]) / float(self.n_pop)
 
         # report the progress for one generation
-        print current_gen, "%.2e" % mse, filter(lambda x: x[1] > 0, sorted(self._part_hist.items(), reverse=True))
+        print current_gen, "%.2e" % mse, filter(lambda x: x[1] > 0, hist)
 
         # stop when a "good enough" solution is found
-        return mse <= self.limit
-
-
-    def evolve (self):
-        """iterate N times or until a 'good enough' solution is found"""
-        for current_gen in xrange(self.n_gen):
-            self.run_generation(current_gen)
-
-            if self.test_termination(current_gen):
-                break
+        return mse <= self._term_limit
 
 
     def report_summary (self):
@@ -238,7 +218,7 @@ class Individual (object):
         # add the mutant Individual to the Population, but remove its prior self
         # failure semantics: ignore, mutation rate is approx upper bounds
         if pop.reify(mutant):
-            pop.dereify(self)
+            pop.evict(self)
 
 
     def breed (self, pop, gen, mate):
@@ -262,11 +242,18 @@ if __name__=='__main__':
     prefix = "/tmp/exelixi/%s" % uuid
 
     # initialize a Population of unique Individuals at generation 0
-    pop = Population(Individual(), prefix=prefix, n_pop=20, n_gen=5, limit=1.0e-03)
+    pop = Population(Individual(), prefix=prefix, n_pop=20, term_limit=1.0e-03)
     pop.populate(0)
 
     # iterate N times or until a "good enough" solution is found
-    pop.evolve()
+    n_gen = 5
+
+    for current_gen in xrange(n_gen):
+        fitness_cutoff = pop.get_fitness_cutoff(selection_rate=0.2)
+        pop.next_generation(current_gen, fitness_cutoff, mutation_rate=0.02)
+
+        if pop.test_termination(current_gen):
+            break
 
     # report summary
     pop.report_summary()
