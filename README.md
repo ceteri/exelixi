@@ -159,7 +159,7 @@ The [hash ring] helps to "shuffle" the genes of the Population among different s
 In essence, this aspect allows for [GA] problems to scale-out horizontally.
 The [bloom filter] introduces a small rate of false positives in the Individual lookup (data loss), 
 as a trade-off for large performance gains.
-However, this forces a pre-defined limit on the number of Individuals explored in the feature space during an algorithm run.
+This also forces a pre-defined limit on the number of Individuals explored in the feature space during an algorithm run.
 
 [REST] services and internal tasks for the Executors are implement using [gevents],
 a coroutine library that provides concurrency on top of _libevent_.
