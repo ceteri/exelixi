@@ -159,14 +159,13 @@ Consequently, if mutation is considered as "replacement", then there is a limite
 This allows for some measure of _idempotence_ in the overall data collection,
 e.g., append-only updates to [HDFS], which can be used to reconstruct state following a node or process failure.
 
-Also, the algorithm is tolerant of several factors that often hinder distributed systems:
+Also, the algorithm is tolerant of factors that often hinder distributed systems:
 * _eventual consistency_ in the durable storage
-* _race conditions_ in the lookup of Individuals (having some duplicates/overlap adds minor performance overhead)
-* _data loss_ of partial solutions (e.g., when an Executor fails)
+* _data loss_ of partial solutions, e.g., a [bloom filter] false positive, or when an Executor fails, etc.
 
-In the latter case, when an Executor process is lost, the Framework can simply launch another Executor on the cluster 
-(via [Marathon]) and have it generate new Individuals.
-That contingency adds another stochastic component to the search, and in some cases may help accelerate evolution.
+In the latter case when an Executor process is lost, the Framework can simply launch another Executor on the cluster 
+(via [Marathon]) and have it restore its shard of Individuals from its last good checkpoint.
+In general, limited amounts of data loss serve to add stochastic aspects to the search, and may help accelerate evolution.
 
 
 [Apache Mesos]: http://mesos.apache.org/
