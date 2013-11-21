@@ -41,13 +41,15 @@ if __name__=='__main__':
     ## Framework operations:
 
     # parse command line options
+    ff_name = sys.argv[1]
+
     print "Exelixi: framework launching..."
 
     fra = Framework(n_gen=5)
     print fra.prefix
 
     # initialize a Population of unique Individuals at generation 0
-    pop = Population(Individual(), FeatureFactory(), prefix=fra.prefix, n_pop=11, term_limit=9.0e-03)
+    pop = Population(Individual(), ff_name, prefix=fra.prefix, n_pop=11, term_limit=9.0e-03)
     pop.populate(0)
 
     # iterate N times or until a "good enough" solution is found

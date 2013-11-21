@@ -20,6 +20,7 @@
 from bloomfilter import BloomFilter
 from collections import Counter
 from hashlib import sha224
+from importlib import import_module
 from json import dumps
 from random import randint, random, sample
 
@@ -28,9 +29,12 @@ from random import randint, random, sample
 ## class definitions
 
 class Population (object):
-    def __init__ (self, indiv_instance, feature_factory, prefix="/tmp/exelixi", n_pop=11, term_limit=0.0, hist_granularity=3):
+    def __init__ (self, indiv_instance, ff_name, prefix="/tmp/exelixi", n_pop=11, term_limit=0.0, hist_granularity=3):
         self.indiv_class = indiv_instance.__class__
-        self.feature_factory = feature_factory
+
+        module_name, class_name = ff_name.split(".")
+        self.feature_factory = getattr(import_module(module_name), class_name)()
+
         self.prefix = prefix
         self.n_pop = n_pop
 

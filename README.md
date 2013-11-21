@@ -24,6 +24,8 @@ Then launch a Framework to run the default [GA]:
 
 Note that it is recommended to use [Anaconda] as the Python version 2.7 platform.
 
+<b>current status:</b> running one master/one slave only (e.g., on a laptop)
+
 
 ## Background
 

@@ -130,7 +130,9 @@ class Executor (object):
 
             ## TODO
             # initialize a Population of unique Individuals on this shard at generation 0
-            self.pop = Population(Individual(), prefix="/tmp/exelixi", n_pop=20, term_limit=1.0e-04)
+            ff_name = "ga.FeatureFactory"
+
+            self.pop = Population(Individual(), ff_name, prefix="/tmp/exelixi", n_pop=11, term_limit=9.0e-03)
             self.pop.populate(0)
 
             # iterate N times or until a "good enough" solution is found
