@@ -17,7 +17,7 @@
 # https://github.com/ceteri/exelixi
 
 
-from ga import Individual, Population
+from ga import FeatureFactory, Individual, Population
 from hashring import HashRing
 from json import loads
 from uuid import uuid1
@@ -47,7 +47,7 @@ if __name__=='__main__':
     print fra.prefix
 
     # initialize a Population of unique Individuals at generation 0
-    pop = Population(Individual(), prefix=fra.prefix, n_pop=20, term_limit=1.0e-04)
+    pop = Population(Individual(), FeatureFactory(), prefix=fra.prefix, n_pop=11, term_limit=9.0e-03)
     pop.populate(0)
 
     # iterate N times or until a "good enough" solution is found

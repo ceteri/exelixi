@@ -86,12 +86,12 @@ a service running on a slave node in the cluster, responsible for computing shar
 ### Design For Scalability
 
 To implement a [GA] in Exelixi, simply extend two classes in Python.
-First, subclass the _FeatureSet_ class to customize the following operations:
-* handle codex for serializing/deserializing a feature set
+First, subclass the _FeatureFactory_ class to customize the following operations:
 * randomly generate a feature set
 * mutate a feature set
 * breed a pair of parents to produce a child
 * calculate (or approximate) a fitness function
+* handle codex for serializing/deserializing a feature set
 
 Individuals get represented as key/value pairs.
 The value consists of a tuple <code>[fitness value, generation, feature set]</code> 

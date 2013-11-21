@@ -28,8 +28,9 @@ from random import randint, random, sample
 ## class definitions
 
 class Population (object):
-    def __init__ (self, indiv_instance, prefix="/tmp/exelixi", n_pop=11, term_limit=0.0, hist_granularity=3):
+    def __init__ (self, indiv_instance, feature_factory, prefix="/tmp/exelixi", n_pop=11, term_limit=0.0, hist_granularity=3):
         self.indiv_class = indiv_instance.__class__
+        self.feature_factory = feature_factory
         self.prefix = prefix
         self.n_pop = n_pop
 
@@ -48,7 +49,7 @@ class Population (object):
         for _ in xrange(self.n_pop):
             # constructor pattern
             indiv = self.indiv_class()
-            indiv.populate(current_gen, indiv.generate_feature_set())
+            indiv.populate(current_gen, self.feature_factory.generate_features())
 
             # add the generated Individual to the Population
             # failure semantics: must filter nulls from initial population
@@ -62,8 +63,8 @@ class Population (object):
         if not indiv.key in self._bf:
             self._bf.update([indiv.key])
 
-            # NB: potentially the most expensive operation, deferred until remote reification
-            indiv.calc_fitness()
+            # potentially the most expensive operation, deferred until remote reification
+            indiv.get_fitness(self.feature_factory, force=True)
             self._uniq_dht[indiv.key] = indiv
 
             return True
@@ -74,7 +75,7 @@ class Population (object):
     def evict (self, indiv):
         """remove an Individual from the Population (death)"""
         if indiv.key in self._uniq_dht:
-            # only need to remove locally
+            # only needs to be removed locally
             del self._uniq_dht[indiv.key]
 
             # NB: serialize to disk (write behinds)
@@ -83,7 +84,7 @@ class Population (object):
 
     def get_part_hist (self):
         """tally counts for the partial histogram of the fitness distribution"""
-        d = dict(Counter([ round(indiv.fitness, self._hist_granularity) for indiv in self._uniq_dht.values() ])).items()
+        d = dict(Counter([ round(indiv.get_fitness(self.feature_factory, force=False), self._hist_granularity) for indiv in self._uniq_dht.values() ])).items()
         d.sort(reverse=True)
         return d
 
@@ -112,14 +113,14 @@ class Population (object):
     def _boost_diversity (self, current_gen, indiv, mutation_rate):
         """randomly select other individuals and mutate them, to promote genetic diversity"""
         if mutation_rate > random():
-            indiv.mutate(self, current_gen)
+            indiv.mutate(self, current_gen, self.feature_factory)
         else:
             self.evict(indiv)
 
 
     def _select_parents (self, current_gen, fitness_cutoff, mutation_rate):
         """select the parents for the next generation"""
-        partition = map(lambda x: (x.fitness >= fitness_cutoff, x), self._uniq_dht.values())
+        partition = map(lambda x: (x.get_fitness() >= fitness_cutoff, x), self._uniq_dht.values())
         good_fit = map(lambda x: x[1], filter(lambda x: x[0], partition))
         poor_fit = map(lambda x: x[1], filter(lambda x: not x[0], partition))
 
@@ -134,18 +135,28 @@ class Population (object):
         """select/mutate/crossover parents to produce a new generation"""
         parents = self._select_parents(current_gen, fitness_cutoff, mutation_rate)
 
-        for (f, m) in [ sample(parents, 2) for _ in xrange(self.n_pop - len(parents)) ]:
-            f.breed(self, current_gen, m)
+        for _ in xrange(self.n_pop - len(parents)):
+            f, m = sample(parents, 2) 
+            success = f.breed(self, current_gen, m, self.feature_factory)
+
+        # backfill to avoid the dreaded Population collapse
+
+        for _ in xrange(self.n_pop - len(self._uniq_dht.values())):
+            # constructor pattern
+            indiv = self.indiv_class()
+            indiv.populate(current_gen, self.feature_factory.generate_features())
+            self.reify(indiv)
 
 
     def test_termination (self, current_gen):
         """evaluate the terminating condition for this generation and report progress"""
         # find the mean squared error (MSE) of fitness for a population
         hist = self.get_part_hist()
-        mse = sum([ count * (1.0 - bin) ** 2.0 for bin, count in hist ]) / float(self.n_pop)
+        n_indiv = sum([ count for bin, count in hist ])
+        mse = sum([ count * (1.0 - bin) ** 2.0 for bin, count in hist ]) / float(n_indiv)
 
         # report the progress for one generation
-        print current_gen, "%.2e" % mse, filter(lambda x: x[1] > 0, hist)
+        print current_gen, n_indiv, "%.2e" % mse, filter(lambda x: x[1] > 0, hist)
 
         # stop when a "good enough" solution is found
         return mse <= self._term_limit
@@ -153,49 +164,27 @@ class Population (object):
 
     def report_summary (self):
         """report a summary of the evolution"""
-        for indiv in sorted(self._uniq_dht.values(), key=lambda x: x.fitness, reverse=True):
+        for indiv in sorted(self._uniq_dht.values(), key=lambda x: x.get_fitness(), reverse=True):
             print self._get_storage_path(indiv)
-            print "\t".join(["%0.4f" % indiv.fitness, "%d" % indiv.gen, indiv.get_json_feature_set()])
-
-
-class FeatureSet (object):
-    # feature set parameters (customize this part)
-    target = 231
-    length = 5
-    min = 0
-    max = 100
-
-
-    def __init__ (self):
-        pass
+            print "\t".join(["%0.4f" % indiv.get_fitness(), "%d" % indiv.gen, indiv.get_json_feature_set()])
 
 
 class Individual (object):
-    # feature set parameters (customize this part)
-    target = 231
-    length = 5
-    min = 0
-    max = 100
-
-
     def __init__ (self):
         """create a member of the population"""
         self.gen = None
-        self._feature_set = None
         self.key = None
-        self.fitness = None
+        self._feature_set = None
+        self._fitness = None
 
 
-    def populate (self, gen, feature_set):
-        """populate the instance variables"""
-        self.gen = gen
-        self._feature_set = feature_set
-        self.key = self.get_unique_key()
+    def get_fitness (self, feature_factory=None, force=False):
+        """determine the fitness ranging [0.0, 1.0]; higher is better"""
+        if feature_factory and feature_factory.use_force(force):
+            # potentially the most expensive operation, deferred with careful consideration
+            self._fitness = feature_factory.get_fitness(self._feature_set)
 
-
-    def generate_feature_set (self):
-        """generate a new feature set"""
-        return sorted([ randint(Individual.min, Individual.max) for _ in xrange(Individual.length) ])
+        return self._fitness
 
 
     def get_json_feature_set (self):
@@ -203,45 +192,80 @@ class Individual (object):
         return dumps(tuple(self._feature_set))
 
 
-    def get_unique_key (self):
-        """create a unique key by taking a SHA-3 digest of the JSON representing this feature set"""
+    def populate (self, gen, feature_set):
+        """populate the instance variables"""
+        self.gen = gen
+        self._feature_set = feature_set
+
+        # create a unique key using a SHA-3 digest of the JSON representing this feature set
         m = sha224()
         m.update(self.get_json_feature_set())
-        return m.hexdigest()
+        self.key = m.hexdigest()
 
 
-    def calc_fitness (self):
-        """determine the fitness ranging [0.0, 1.0]; higher is better"""
-        self.fitness = 1.0 - abs(sum(self._feature_set) - Individual.target) / float(Individual.target)
-
-
-    def mutate (self, pop, gen):
+    def mutate (self, pop, gen, feature_factory):
         """attempt to mutate the feature set"""
-        pos_to_mutate = randint(0, len(self._feature_set) - 1)
-        mutated_feature_set = self._feature_set
-        mutated_feature_set[pos_to_mutate] = randint(Individual.min, Individual.max)
-
         # constructor pattern
         mutant = self.__class__()
-        mutant.populate(gen, sorted(mutated_feature_set))
+        mutant.populate(gen, feature_factory.mutate_features(self._feature_set))
 
         # add the mutant Individual to the Population, but remove its prior self
         # failure semantics: ignore, mutation rate is approx upper bounds
         if pop.reify(mutant):
             pop.evict(self)
+            return True
+        else:
+            return False
 
 
-    def breed (self, pop, gen, mate):
+    def breed (self, pop, gen, mate, feature_factory):
         """breed with a mate to produce a child"""
-        half = len(self._feature_set) / 2
-
         # constructor pattern
         child = self.__class__()
-        child.populate(gen, sorted(self._feature_set[half:] + mate._feature_set[:half]))
+        child.populate(gen, feature_factory.breed_features(self._feature_set, mate._feature_set))
 
         # add the child Individual to the Population
         # failure semantics: ignore, the count will rebalance over the hash ring
-        pop.reify(child)
+        return pop.reify(child)
+
+
+class FeatureFactory (object):
+    def __init__ (self):
+        """feature set parameters -- customize this!"""
+        self.length = 5
+        self.min = 0
+        self.max = 100
+        self.target = 231
+
+
+    def get_fitness (self, feature_set):
+        """determine the fitness ranging [0.0, 1.0]; higher is better"""
+        return 1.0 - abs(sum(feature_set) - self.target) / float(self.target)
+
+
+    def use_force (self, force):
+        """determine whether to force recalculation of a fitness function"""
+        # NB: some use cases may require override for recalculation, e.g., shared resources
+        return force
+
+
+    def generate_features (self):
+        """generate a new feature set"""
+        return sorted([ randint(self.min, self.max) for _ in xrange(self.length) ])
+
+
+    def mutate_features (self, feature_set):
+        """mutate a copy of the given feature set"""
+        pos_to_mutate = randint(0, len(feature_set) - 1)
+        mutated_feature_set = list(feature_set)
+        mutated_feature_set[pos_to_mutate] = randint(self.min, self.max)
+        return sorted(mutated_feature_set)
+
+
+    def breed_features (self, f_feature_set, m_feature_set):
+        """breed two feature sets to produce a child"""
+        half = len(f_feature_set) / 2
+        return sorted(f_feature_set[half:] + m_feature_set[:half])
 
 
 if __name__=='__main__':
