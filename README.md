@@ -152,7 +152,7 @@ An _executor_ is a service running on a [Apache Mesos] slave that:
 * persists serialized Individuals to durable storage (write-behinds)
 * recovers a shard from the last checkpoint, after failures
 
-The lookup service which implements the [distributed hash tables] leverages 
+The lookup service which implements the [distributed hash table] in turn leverages 
 a [hash ring] to distribute Individuals among neighboring shards of the Population and a [bloom filter] for 
 a fast, space-efficient, probabilistic set membership function which has no false negatives but allows rare false positives.
 The [hash ring] helps to "shuffle" the genes of the Population among different shards, to enhance the breeding pair selection.
