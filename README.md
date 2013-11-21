@@ -150,7 +150,7 @@ a coroutine library that provides concurrency on top of _libevent_.
 
 ### Observations about Distributed Systems
 
-Effectively, a [GA] implements a stochastic process over a [content addressable memory], to optimize a convex search space.
+Effectively, a [GA] implements a stochastic process over a [content addressable memory], to optimize a non-convex search space.
 Given use of [HDFS] for distributed storage, then much of the architecture resembles a [distributed hash table] which tolerates data loss.
 
 Note that feature set serialization (key construction) only needs to be performed once per Individual,
