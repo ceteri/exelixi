@@ -30,17 +30,18 @@ In a [GA], a _Population_ of candidate solutions (called _Individuals_) to an op
 Each candidate solution has a _feature set_ -- i.e., its "chromosomes", if you will -- which can be altered and recominbed.
 The _fitness_ for each Individual gets evaluated (or approximated) using a _fitness function_ applied to its feature set.
 
-Evolution starts with randomly generated Individuals, then iterates through successive _generations_.
-During each generation, a stochastic process called _selection_ preserves the better fit Individuals as _parents_ for the next generation.
-Some are randomly altered, based on a _mutation_ operation.
+Evolution starts with a set of randomly generated Individuals, then iterates through successive _generations_.
+A stochastic process called _selection_ preserves the Individuals with better fitness as _parents_ for the next generation.
+Some get randomly altered, based on a _mutation_ operation.
 Pairs of parents selected at random (with replacement) from the Population are used to "breed" new Individuals,
 based on a _crossover_ operation.
 
 The algorithm terminates when the Population reaches some user-defined condition.
 For example: 
-* maximum number of generations
 * acceptable fitness for some Individual
 * threshold aggregate error for the Population overall
+* maximum number of generations iterated
+* maximum number of Individuals evalutated
 
 
 ### Components
@@ -56,25 +57,27 @@ an archive of Individuals that did not survive, persisted to durable storage and
 and also used for analysis after an algorithm run terminates
 
 _Framework_:
-a long-running process that maintains state for the system parameters and models parameters, obtains resources for the Executors, coordinates Executors through successive generations, and reports results; also handles all of the user interaction
+a long-running process that maintains state for the system parameters and models parameters,
+obtains resources for the Executors, coordinates Executors through successive generations,
+and reports results; also handles all of the user interaction
 
 _Executor_:
-a service running on a slave node in the cluster, responsible for computing a subset of the Population
+a service running on a slave node in the cluster, responsible for computing shards of the Population
 
 
 ## Implementation
 ### Design For Scalability
 
 To implement a [GA] in Exelixi, simply extend two classes in Python.
-First, subclass the _Individual_ class to customize the following operations:
-* randomly generate a feature set
+First, subclass the _FeatureSet_ class to customize the following operations:
 * handle codex for serializing/deserializing a feature set
+* randomly generate a feature set
 * mutate a feature set
 * breed a pair of parents to produce a child
 * calculate (or approximate) a fitness function
 
 Individuals get represented as key/value pairs.
-The value consists of a tuple <code>[fitness value, generation]</code> 
+The value consists of a tuple <code>[fitness value, generation, feature set]</code> 
 and a unique key is constructed from a [SHA-3] digest of the JSON representing the feature set. 
 
 Let's consider how to persist an Individual in the Fossil Record given:
@@ -84,7 +87,7 @@ Let's consider how to persist an Individual in the Fossil Record given:
 * a generation number, e.g., <code>231</code>
 * JSON representing a feature set, e.g., <code>(1, 5, 2)</code>
 
-In that case, the Individual would be represented as the pair:
+In that case, the Individual would be represented in storage in tab-seperated format (TSV) as the pair:
 
     hdfs://048e9fae50c311e3a4cd542696d7e175/0b799066c39a673d84133a484c2bf9a6b55eae320e33e0cc7a4ade49, [0.5654, 231, [1, 5, 2]]
 
@@ -94,6 +97,7 @@ In that case, the Individual would be represented as the pair:
 The _framework_ is a long-running process that:
 * parses command-line options from the user
 * generates a [UUID] for each attempted algorithm run
+* generates the [HDFS] directory prefix
 * maintains _operational state_ (e.g., system parameters) in [Zookeeper]
   * *prefix*: unique directory prefix in [HDFS] based on generated [UUID]
   * *n_exe*: number of allocated Executors
@@ -103,32 +107,45 @@ The _framework_ is a long-running process that:
 * receives _logical state_ (e.g., model parameters) from customized Python classes
   * *n_gen*: maximum number of generations
   * *n_pop*: maximum number of "live" Individuals at any point
-  * *max_pop*: maximum number of Individuals ever
+  * *max_pop*: maximum number of Individuals explored in the feature space during an algorithm run
   * *term_limit*: a threshold used for testing the terminating condition
   * *hist_granularity*: number of decimal places in fitness values used to construct the _fitness histogram_
   * *selection_rate*: fraction of "most fit" Individuals selected as parents in each generation
   * *mutation_rate*: random variable for applying mutation to an Individual retained for diversity
-* generates the [HDFS] directory prefix
 * initializes the pool of Executors
-* iterates through the phases of each generation (selection/mutation, breeding, evaluation, reporting, shuffle)
+* iterates through the phases of each generation (selection/mutation, breeding, evaluation)
 * restores state for itself or for any Executor after a failure
-* reports results at any point -- including final results after an algorithm run terminates
+* enumerates results at any point -- including final results after an algorithm run terminates
 
-Resources allocated for each Executor must be sufficient to support a Population subset of *n_pop* / *n_exe* Individuals.
+Resources allocated for each Executor must be sufficient to support a Population shard of *n_pop* / *n_exe* Individuals.
 
 
 ### Executor
 
 An _executor_ is a service running on a [Apache Mesos] slave that:
-* implements an in-memory distributed cache backed by [HDFS] (with snapshots)
-* generates a pool of "live" Individuals at initialization or recovery
-* maintains "live" Individuals in memory
-* provides a lookup service for the feature space vs. fitness of known attempts
-* persists serialized Individuals to durable storage
+* implements an in-memory distributed cache backed by [HDFS] (with write-behinds and checkpoints)
+* provides a lookup service for past/present Individuals in the feature space via a [bloom filter]
+* generates a shard as a pool of "live" Individuals at initialization or recovery
+* maintains a shard of "live" Individuals in memory
+* enumerates the Individuals in the shard of the Population at any point
 * calculates a partial histogram for the distribution of fitness
-* shuffles the local Population among neighboring Executors
+* shuffles the local Population among neighboring Executors via a [hash ring]
 * applies a filter to "live" Individuals to select parents for the next generation
 * handles mutation, breeding, and evaluation of "live" Individuals
+* persists serialized Individuals to durable storage (write-behinds)
+* recovers a shard from the last checkpoint, after failures
+
+The lookup service which implements the [distributed hash tables] leverages 
+a [hash ring] to distribute Individuals among neighboring shards of the Population and a [bloom filter] for 
+a fast, space-efficient, probabilistic set membership function which has no false negatives but allows rare false positives.
+The [hash ring] helps to "shuffle" the genes of the Population among different shards, to enhance the breeding pair selection.
+In essence, this aspect allows for [GA] problems to scale-out horizontally.
+The [bloom filter] introduces a small rate of false positives in the Individual lookup (data loss), 
+as a trade-off for large performance gains.
+However, this forces a pre-defined limit on the number of Individuals explored in the feature space during an algorithm run.
+
+[REST] services and internal tasks for the Executors are implement using [gevents],
+a coroutine library that provides concurrency on top of _libevent_.
 
 
 ### Observations about Distributed Systems
@@ -136,9 +153,10 @@ An _executor_ is a service running on a [Apache Mesos] slave that:
 Effectively, a [GA] implements a stochastic process over a [content addressable memory], to optimize a convex search space.
 Given use of [HDFS] for distributed storage, then much of the architecture resembles a [distributed hash table] which tolerates data loss.
 
-Note that feature set serialization (key construction) and fitness function calculation only need to be performed once per Individual.
-In other words, there is no mutable "state" in the Individuals, if mutation is considered as replacement.
-This allows for _idempotence_ in the overall data collection,
+Note that feature set serialization (key construction) only needs to be performed once per Individual,
+and the fitness function calculation only needs to be performed on "live" Individuals in the current Population.
+Consequently, if mutation is considered as "replacement", then there is a limited amount of mutable state in the Individuals.
+This allows for some measure of _idempotence_ in the overall data collection,
 e.g., append-only updates to [HDFS], which can be used to reconstruct state following a node or process failure.
 
 Also, the algorithm is tolerant of several factors that often hinder distributed systems:
@@ -156,13 +174,17 @@ That contingency adds another stochastic component to the search, and in some ca
 [HDFS]: http://hadoop.apache.org/
 [JSON]: http://www.json.org/
 [Marathon]: https://github.com/mesosphere/marathon
+[REST]: http://www.ics.uci.edu/~taylor/documents/2002-REST-TOIT.pdf
 [SHA-3]: http://en.wikipedia.org/wiki/SHA-3
 [UUID]: http://tools.ietf.org/html/rfc4122.html
 [Zookeeper]: http://zookeeper.apache.org/
+[bloom filter]: http://code.activestate.com/recipes/577684-bloom-filter/
 [content addressable memory]: http://en.wikipedia.org/wiki/Content-addressable_memory
 [distributed hash table]: http://en.wikipedia.org/wiki/Distributed_hash_table
 [evolutionary algorithms]: http://en.wikipedia.org/wiki/Evolutionary_algorithm
 [genetic algorithms]: http://en.wikipedia.org/wiki/Genetic_algorithm
 [genetic programming]: http://en.wikipedia.org/wiki/Genetic_programming
+[gevents]: http://www.gevent.org/gevent.wsgi.html
+[hash ring]: http://amix.dk/blog/post/19367
 [machine learning]: http://en.wikipedia.org/wiki/Machine_learning
 [stochastic gradient descent]: http://en.wikipedia.org/wiki/Stochastic_gradient_descent

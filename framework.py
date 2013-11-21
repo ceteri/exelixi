@@ -18,6 +18,8 @@
 
 
 from ga import Individual, Population
+from hashring import HashRing
+from json import loads
 from uuid import uuid1
 import sys
 

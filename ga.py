@@ -19,7 +19,6 @@
 
 from bloomfilter import BloomFilter
 from collections import Counter
-from hashring import HashRing
 from hashlib import sha224
 from json import dumps
 from random import randint, random, sample
@@ -157,6 +156,18 @@ class Population (object):
         for indiv in sorted(self._uniq_dht.values(), key=lambda x: x.fitness, reverse=True):
             print self._get_storage_path(indiv)
             print "\t".join(["%0.4f" % indiv.fitness, "%d" % indiv.gen, indiv.get_json_feature_set()])
+
+
+class FeatureSet (object):
+    # feature set parameters (customize this part)
+    target = 231
+    length = 5
+    min = 0
+    max = 100
+
+
+    def __init__ (self):
+        pass
 
 
 class Individual (object):
