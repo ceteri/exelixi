@@ -8,6 +8,23 @@ On the other hand, it provides a general-purpose [GA] platform that emphasizes _
 while leveraging the wealth of available Python analytics packages.
 
 
+## Getting Started
+
+More details are given below -- in terms of customizing the [GA] platform for solving specific problems.
+However, to get started quickly on a single node (i.e., your laptop) simply follow two steps.
+
+First, launch one Executor locally:
+
+    nohup executor.py 9311 &
+
+Then launch a Framework to run the default [GA]:
+
+    ./driver.py localhost:9311 pop/init ./test
+    ./driver.py localhost:9311 stop ./test
+
+Note that it is recommended to use [Anaconda] as the Python version 2.7 platform.
+
+
 ## Background
 
 ### Overview
@@ -168,6 +185,7 @@ In the latter case when an Executor process is lost, the Framework can simply la
 In general, limited amounts of data loss serve to add stochastic aspects to the search, and may help accelerate evolution.
 
 
+[Anaconda]: https://store.continuum.io/cshop/anaconda/
 [Apache Mesos]: http://mesos.apache.org/
 [GA]: http://en.wikipedia.org/wiki/Genetic_algorithm
 [HDFS]: http://hadoop.apache.org/
