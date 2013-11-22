@@ -73,16 +73,22 @@ class Executor (object):
         self.pop = Population(Individual(), self.ff_name, self.prefix, self.n_pop, self.term_limit)
         self.pop.populate(0)
 
-        # iterate N times or until a "good enough" solution is found
-        # NB: change this
+
+    def pop_next (self, *args, **kwargs):
+        """iterate N times or until a 'good enough' solution is found"""
+        payload = args[0]
+        selection_rate = payload["selection_rate"]
+        mutation_rate = payload["mutation_rate"]
+
         n_gen = 5
 
         for current_gen in xrange(n_gen):
-            fitness_cutoff = self.pop.get_fitness_cutoff(selection_rate=0.2)
-            self.pop.next_generation(current_gen, fitness_cutoff, mutation_rate=0.02)
+            fitness_cutoff = self.pop.get_fitness_cutoff(selection_rate)
 
             if self.pop.test_termination(current_gen):
                 break
+
+            self.pop.next_generation(current_gen, fitness_cutoff, mutation_rate)
 
         # report summary
         self.pop.report_summary()
@@ -184,12 +190,12 @@ class Executor (object):
 
         elif uri_path == '/pop/next':
             # attempt to run another generation
-            payload = loads(env['wsgi.input'].read())
-            print "POST", payload
-
-            ## TODO
-
             start_response('200 OK', [('Content-Type', 'text/plain')])
+
+            payload = loads(env['wsgi.input'].read())
+            gl = Greenlet(self.pop_next, payload)
+            gl.start()
+
             body.put("Bokay\r\n")
 
         elif uri_path == '/pop/reify':

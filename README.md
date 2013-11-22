@@ -30,6 +30,14 @@ Note that it is recommended to use [Anaconda] as the Python version 2.7 platform
 
 2013-11-21 running one master/one slave only (e.g., on a laptop)
 
+### TODO:
+* integration of [Apache Mesos] <code>test_framework.py</code> and <code>test_executor.py</code>
+* support for multiple Executors in the [hash ring]
+* shard checkpoint
+* shard recovery
+* <code>Makefile</code> to build tarball for Executor downloads
+* saving/recovering Framework state in [Zookeeper]
+
 
 ## Background
 
@@ -123,14 +131,13 @@ In that case, the Individual would be represented in storage in tab-seperated fo
 The _framework_ is a long-running process that:
 * parses command-line options from the user
 * generates a [UUID] for each attempted algorithm run
-* generates the [HDFS] directory prefix
 * maintains _operational state_ (e.g., system parameters) in [Zookeeper]
   * *prefix*: unique directory prefix in [HDFS] based on generated [UUID]
   * *n_exe*: number of allocated Executors
-  * *exe_url*: URL for customized Python classes tarball
+  * *exe_url*: download URL for Executor tarball (customized Python classes)
   * list of Executor endpoints from [Marathon]
   * *current_gen*: current generation count
-* receives _logical state_ (e.g., model parameters) from customized Python classes
+* receives _logical state_ (e.g., model parameters) from the command line options and customized Python classes
   * *n_gen*: maximum number of generations
   * *n_pop*: maximum number of "live" Individuals at any point
   * *max_pop*: maximum number of Individuals explored in the feature space during an algorithm run

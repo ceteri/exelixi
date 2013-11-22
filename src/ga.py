@@ -26,9 +26,14 @@ from random import randint, random, sample
 
 
 ######################################################################
-## globals
+## globals and utilities
 
 APP_NAME = "Exelixi"
+
+
+def instantiate_class (class_path):
+    module_name, class_name = class_path.split(".")
+    return getattr(import_module(module_name), class_name)()
 
 
 ######################################################################
@@ -37,9 +42,7 @@ APP_NAME = "Exelixi"
 class Population (object):
     def __init__ (self, indiv_instance, ff_name, prefix="/tmp/exelixi", n_pop=11, term_limit=0.0, hist_granularity=3):
         self.indiv_class = indiv_instance.__class__
-
-        module_name, class_name = ff_name.split(".")
-        self.feature_factory = getattr(import_module(module_name), class_name)()
+        self.feature_factory = instantiate_class(ff_name)
 
         self.prefix = prefix
         self.n_pop = n_pop
@@ -160,16 +163,7 @@ class Population (object):
 
     def test_termination (self, current_gen):
         """evaluate the terminating condition for this generation and report progress"""
-        # find the mean squared error (MSE) of fitness for a population
-        hist = self.get_part_hist()
-        n_indiv = sum([ count for bin, count in hist ])
-        mse = sum([ count * (1.0 - bin) ** 2.0 for bin, count in hist ]) / float(n_indiv)
-
-        # report the progress for one generation
-        print current_gen, n_indiv, "%.2e" % mse, filter(lambda x: x[1] > 0, hist)
-
-        # stop when a "good enough" solution is found
-        return mse <= self._term_limit
+        return self.feature_factory.test_termination(current_gen, self._term_limit, self.get_part_hist())
 
 
     def report_summary (self):
@@ -241,7 +235,14 @@ class Individual (object):
 
 class FeatureFactory (object):
     def __init__ (self):
-        """feature set parameters -- customize this!"""
+        ## NB: override these GA parameters
+        self.n_pop = 11
+        self.n_gen = 5
+        self.term_limit = 9.0e-03
+        self.selection_rate = 0.2
+        self.mutation_rate = 0.02
+
+        ## NB: override these feature set parameters
         self.length = 5
         self.min = 0
         self.max = 100
@@ -250,22 +251,25 @@ class FeatureFactory (object):
 
     def get_fitness (self, feature_set):
         """determine the fitness ranging [0.0, 1.0]; higher is better"""
+        ## NB: override this fitness function
         return 1.0 - abs(sum(feature_set) - self.target) / float(self.target)
 
 
     def use_force (self, force):
         """determine whether to force recalculation of a fitness function"""
-        # NB: some use cases may require override for recalculation, e.g., shared resources
+        # NB: override in some use cases, e.g., when required for evaluating shared resources
         return force
 
 
     def generate_features (self):
         """generate a new feature set"""
+        ## NB: override this feature set generator
         return sorted([ randint(self.min, self.max) for _ in xrange(self.length) ])
 
 
     def mutate_features (self, feature_set):
         """mutate a copy of the given feature set"""
+        ## NB: override this feature set mutator
         pos_to_mutate = randint(0, len(feature_set) - 1)
         mutated_feature_set = list(feature_set)
         mutated_feature_set[pos_to_mutate] = randint(self.min, self.max)
@@ -274,9 +278,44 @@ class FeatureFactory (object):
 
     def breed_features (self, f_feature_set, m_feature_set):
         """breed two feature sets to produce a child"""
+        ## NB: override this feature set crossover
         half = len(f_feature_set) / 2
         return sorted(f_feature_set[half:] + m_feature_set[:half])
 
 
+    def test_termination (self, current_gen, term_limit, hist):
+        """evaluate the terminating condition for this generation and report progress"""
+        ## NB: override this termination test
+
+        # find the mean squared error (MSE) of fitness for a population
+        n_indiv = sum([ count for bin, count in hist ])
+        mse = sum([ count * (1.0 - bin) ** 2.0 for bin, count in hist ]) / float(n_indiv)
+
+        # report the progress for one generation
+        print current_gen, n_indiv, "%.2e" % mse, filter(lambda x: x[1] > 0, hist)
+
+        # stop when a "good enough" solution is found
+        return mse <= term_limit
+
+
 if __name__=='__main__':
-    pass
+    ## test in standalone-mode, i.e., without a Framework or Executor
+
+    ff_name = "ga.FeatureFactory"
+    ff = instantiate_class(ff_name)
+
+    # initialize a Population of unique Individuals at generation 0
+    pop = Population(Individual(), ff_name, prefix="/tmp/exelixi", n_pop=ff.n_pop, term_limit=ff.term_limit)
+    pop.populate(0)
+
+    # iterate N times or until a "good enough" solution is found
+    for current_gen in xrange(ff.n_gen):
+        fitness_cutoff = pop.get_fitness_cutoff(selection_rate=ff.selection_rate)
+
+        if pop.test_termination(current_gen):
+            break
+
+        pop.next_generation(current_gen, fitness_cutoff, mutation_rate=ff.mutation_rate)
+
+    # report summary
+    pop.report_summary()

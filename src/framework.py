@@ -17,7 +17,7 @@
 # https://github.com/ceteri/exelixi
 
 
-from ga import FeatureFactory, Individual, Population
+from ga import instantiate_class, APP_NAME, FeatureFactory, Individual, Population
 from hashring import HashRing
 from json import loads
 from uuid import uuid1
@@ -28,13 +28,11 @@ import sys
 ## class definitions
 
 class Framework (object):
-    def __init__ (self, prefix="/tmp/exelixi/", n_gen=9):
+    def __init__ (self, prefix="/tmp/exelixi/"):
         # system parameters, for representing operational state
         self.uuid = uuid1().hex
         self.prefix = prefix + self.uuid
-
-        # model parameters, for representing logical state
-        self.n_gen = n_gen
+        self.current_gen = 0
 
 
 if __name__=='__main__':
@@ -42,24 +40,27 @@ if __name__=='__main__':
 
     # parse command line options
     ff_name = sys.argv[1]
+    ff = instantiate_class(ff_name)
 
-    print "Exelixi: framework launching..."
-
-    fra = Framework(n_gen=5)
-    print fra.prefix
+    fra = Framework(ff_name)
+    print "%s: framework launching at %s based on %s..." % (APP_NAME, fra.prefix, ff_name)
 
     # initialize a Population of unique Individuals at generation 0
-    pop = Population(Individual(), ff_name, prefix=fra.prefix, n_pop=11, term_limit=9.0e-03)
-    pop.populate(0)
+    pop = Population(Individual(), ff_name, prefix=fra.prefix, n_pop=ff.n_pop, term_limit=ff.term_limit)
+    pop.populate(fra.current_gen)
 
     # iterate N times or until a "good enough" solution is found
 
-    for current_gen in xrange(fra.n_gen):
-        fitness_cutoff = pop.get_fitness_cutoff(selection_rate=0.2)
-        pop.next_generation(current_gen, fitness_cutoff, mutation_rate=0.02)
+    while fra.current_gen < ff.n_gen:
+        ## NB: save state to Zookeeper
 
-        if pop.test_termination(current_gen):
+        fitness_cutoff = pop.get_fitness_cutoff(selection_rate=ff.selection_rate)
+
+        if pop.test_termination(fra.current_gen):
             break
+
+        pop.next_generation(fra.current_gen, fitness_cutoff, mutation_rate=ff.mutation_rate)
+        fra.current_gen += 1
 
     # report summary
     pop.report_summary()
