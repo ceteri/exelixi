@@ -45,14 +45,13 @@ to get <code>mesos.py</code> installed on [Elastic Mesos](https://elastic.mesosp
 
     sudo apt-get install python-setuptools ; \
     wget http://downloads.mesosphere.io/master/ubuntu/12.10/mesos_0.14.0-rc4_amd64.egg ; \
-    sudo easy_install mesos_0.14.0-rc4_amd64.egg
+    sudo easy_install mesos_0.14.0-rc4_amd64.egg ; \
+    sudo aptitude -y install python-protobuf
 
 Then on the master:
 
-    sudo aptitude install python-protobuf
-
     wget https://raw.github.com/apache/mesos/master/src/examples/python/test_framework.py ; \
-    wget https://github.com/apache/mesos/blob/master/src/examples/python/test_executor.py
+    wget https://raw.github.com/apache/mesos/master/src/examples/python/test_executor.py
 
     python test_framework.py localhost:5050
 
