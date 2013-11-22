@@ -1,1 +1,1 @@
-{ "ff_name": "ga.FeatureFactory", "n_pop": 11, "term_limit": 9.0e-03 }
+{ "ff_name": "run.FeatureFactory", "n_pop": 11, "term_limit": 9.0e-03 }

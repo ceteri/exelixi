@@ -40,7 +40,6 @@ Note that it is recommended to use [Anaconda] as the Python version 2.7 platform
 
 
 ## Background
-
 ### Overview
 
 In general a [GA] is a search heuristic that mimics the process of natural selection in biological evolution.
@@ -75,6 +74,7 @@ For example:
 * maximum number of Individuals evalutated
 
 
+## Implementation
 ### Components
 
 _FeatureFactory_:
@@ -99,18 +99,33 @@ obtains resources for the Executors, coordinates Executors through successive ge
 and reports results; also handles all of the user interaction
 
 
-## Implementation
-### Design For Scalability
+### FeatureFactory
 
-To implement a [GA] in Exelixi, simply extend two classes in Python.
-First, subclass the _FeatureFactory_ class to customize the following operations:
+To implement a [GA] in <b>Exelixi</b>,
+subclass the _FeatureFactory_ class (in <code>src/run.py</code>) to customize the following operations:
+* handle serializing/deserializing a feature set
 * randomly generate a feature set
-* mutate a feature set
-* breed a pair of parents to produce a child
 * calculate (or approximate) a fitness function
-* handle codex for serializing/deserializing a feature set
+* mutate a feature set
+* crossover a pair of parents to produce a child
+* test the terminating condition
 
-Individuals get represented as key/value pairs.
+Then customize the model parameters:
+  * *n_gen*: maximum number of generations
+  * *n_pop*: maximum number of "live" Individuals at any point
+  * *max_pop*: maximum number of Individuals explored in the feature space during an algorithm run
+  * *term_limit*: a threshold used for testing the terminating condition
+  * *hist_granularity*: number of decimal places in fitness values used to construct the _fitness histogram_
+  * *selection_rate*: fraction of "most fit" Individuals selected as parents in each generation
+  * *mutation_rate*: random variable for applying mutation to an Individual retained for diversity
+
+In general, the other classes cover most use cases and rarely need modifications.
+
+
+### Individual
+
+An _Individual_ represents a candidate solution.
+Individuals get persisted in durable storage as key/value pairs.
 The value consists of a tuple <code>[fitness value, generation, feature set]</code> 
 and a unique key is constructed from a [SHA-3] digest of the JSON representing the feature set. 
 
@@ -121,14 +136,14 @@ Let's consider how to persist an Individual in the Fossil Record given:
 * a generation number, e.g., <code>231</code>
 * JSON representing a feature set, e.g., <code>(1, 5, 2)</code>
 
-In that case, the Individual would be represented in storage in tab-seperated format (TSV) as the pair:
+In that case, the Individual would be represented in tab-separated format (TSV) as the pair:
 
     hdfs://048e9fae50c311e3a4cd542696d7e175/0b799066c39a673d84133a484c2bf9a6b55eae320e33e0cc7a4ade49, [0.5654, 231, [1, 5, 2]]
 
 
 ### Framework
 
-The _framework_ is a long-running process that:
+A _Framework_ is a long-running process that:
 * parses command-line options from the user
 * generates a [UUID] for each attempted algorithm run
 * maintains _operational state_ (e.g., system parameters) in [Zookeeper]
@@ -137,14 +152,7 @@ The _framework_ is a long-running process that:
   * *exe_url*: download URL for Executor tarball (customized Python classes)
   * list of Executor endpoints from [Marathon]
   * *current_gen*: current generation count
-* receives _logical state_ (e.g., model parameters) from the command line options and customized Python classes
-  * *n_gen*: maximum number of generations
-  * *n_pop*: maximum number of "live" Individuals at any point
-  * *max_pop*: maximum number of Individuals explored in the feature space during an algorithm run
-  * *term_limit*: a threshold used for testing the terminating condition
-  * *hist_granularity*: number of decimal places in fitness values used to construct the _fitness histogram_
-  * *selection_rate*: fraction of "most fit" Individuals selected as parents in each generation
-  * *mutation_rate*: random variable for applying mutation to an Individual retained for diversity
+* receives _logical state_ (e.g., model parameters) from customized Python classes
 * initializes the pool of Executors
 * iterates through the phases of each generation (selection/mutation, breeding, evaluation)
 * restores state for itself or for any Executor after a failure
@@ -155,7 +163,7 @@ Resources allocated for each Executor must be sufficient to support a Population
 
 ### Executor
 
-An _executor_ is a service running on a [Apache Mesos] slave that:
+An _Executor_ is a service running on a [Apache Mesos] slave that:
 * maintains _operational state_ (e.g., system parameters) in memory
   * *prefix*: unique directory prefix in [HDFS] based on generated [UUID]
   * *shard_id*: unique identifier for this shard

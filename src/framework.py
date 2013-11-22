@@ -17,7 +17,7 @@
 # https://github.com/ceteri/exelixi
 
 
-from ga import instantiate_class, APP_NAME, FeatureFactory, Individual, Population
+from ga import instantiate_class, APP_NAME, Individual, Population
 from hashring import HashRing
 from json import loads
 from uuid import uuid1
