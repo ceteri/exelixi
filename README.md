@@ -1,6 +1,6 @@
 # Exelixi
 
-*Exelixi* is a distributed framework for running [genetic algorithms] at scale.
+<b>Exelixi</b> is a distributed framework for running [genetic algorithms] at scale.
 The framework is based on [Apache Mesos] and the code is mostly implemented in Python.
 
 On the one hand, this project provides a tutorial for building distributed frameworks in [Apache Mesos].
@@ -32,11 +32,12 @@ Note that it is recommended to use [Anaconda] as the Python version 2.7 platform
 
 ### TODO:
 * integration of [Apache Mesos] <code>test_framework.py</code> and <code>test_executor.py</code>
-* support for multiple Executors in the [hash ring]
-* shard checkpoint
-* shard recovery
 * <code>Makefile</code> to build tarball for Executor downloads
+* support for multiple Executors in the [hash ring]
+* shard checkpoint to [HDFS]
+* shard recovery from [HDFS]
 * saving/recovering Framework state in [Zookeeper]
+* optimize [bloom filter] based on the *max_pop* and *n_exe* parameters
 
 
 ## Background
@@ -50,9 +51,9 @@ and have an important sub-class of [genetic programming] which is used to synthe
 
 Effectively, a [GA] can be applied for partial automation of "think out of the box" ideation in preliminary design.
 While the candidate solutions obtained from a [GA] may not be used directly,
-they inform domain experts how to derive novel design from _first principles_, thereby accelerating iterations substantially.
+they inform domain experts how to derive novel designs from first principles, thereby accelerating design iterations substantially.
 In terms of relationship to [machine learning], this approach approximates a [stochastic gradient descent] where
-the parameter space is quite large and a differentiable objective function may not be immediately apparent.
+the parameter space is quite large and a differentiable objective function may not be feasible.
 
 ### Operation
 
