@@ -99,6 +99,9 @@ class Executor (object):
         uri_path = env['PATH_INFO']
         body = queue.Queue()
 
+        ## NB: these handler cases can be collapsed into a common pattern
+        ## except for config/stop -- later
+
         ##########################################
         # shard lifecycle endpoints
 

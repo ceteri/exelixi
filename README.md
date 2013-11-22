@@ -21,6 +21,7 @@ Then launch a Framework to run the default [GA] as an example:
 
     ./src/driver.py localhost:9311 shard/config ./test
     ./src/driver.py localhost:9311 pop/init ./test
+    ./src/driver.py localhost:9311 pop/next ./test
     ./src/driver.py localhost:9311 stop ./test
 
 Note that it is recommended to use [Anaconda] as the Python version 2.7 platform.
@@ -38,6 +39,14 @@ Note that it is recommended to use [Anaconda] as the Python version 2.7 platform
 * shard recovery from [HDFS]
 * saving/recovering Framework state in [Zookeeper]
 * optimize [bloom filter] based on the *max_pop* and *n_exe* parameters
+
+Troubleshooing for Mesos launch:
+to get <code>mesos.py</code> installed on [Elastic Mesos](https://elastic.mesosphere.io/)
+
+    sudo apt-get install python-setuptools
+    wget https://s3.amazonaws.com/downloads.mesosphere.io/master/ubuntu/12.04/mesos-0.14.0-trunk.egg
+    easy_install mesos-0.14.0-trunk.egg
+
 
 
 ## Background
