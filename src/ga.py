@@ -20,9 +20,11 @@
 from bloomfilter import BloomFilter
 from collections import Counter
 from hashlib import sha224
+from hashring import HashRing
 from importlib import import_module
-from json import dumps
+from json import dumps, loads
 from random import random, sample
+from urllib2 import Request, urlopen
 
 
 ######################################################################
@@ -40,20 +42,21 @@ def instantiate_class (class_path):
 ## class definitions
 
 class Population (object):
-    def __init__ (self, indiv_instance, ff_name, prefix="/tmp/exelixi"):
+    def __init__ (self, indiv_instance, ff_name, prefix="/tmp/exelixi", hash_ring=None):
         self.indiv_class = indiv_instance.__class__
         self.feature_factory = instantiate_class(ff_name)
 
         self.prefix = prefix
-        self.n_pop = self.feature_factory.n_pop
+        self._hash_ring = hash_ring
 
+        self.n_pop = self.feature_factory.n_pop
         self._term_limit = self.feature_factory.term_limit
         self._hist_granularity = self.feature_factory.hist_granularity
 
-        self.selection_rate = self.feature_factory.selection_rate
-        self.mutation_rate = self.feature_factory.mutation_rate
+        self._selection_rate = self.feature_factory.selection_rate
+        self._mutation_rate = self.feature_factory.mutation_rate
 
-        self._uniq_dht = {}
+        self._shard = {}
         self._bf = BloomFilter(num_bytes=125, num_probes=14, iterable=[])
 
 
@@ -74,14 +77,27 @@ class Population (object):
 
     def reify (self, indiv):
         """test/add a newly generated Individual into the Population (birth)"""
+        if self._hash_ring:
+            # NB: distribute this operation over the hash ring, through a remote queue
+            neighbor = self._hash_ring.get_node(indiv.key)
+            # POST
+            req = Request(neighbor + "/pop/reify")
+            req.add_header('Content-Type', 'application/json')
+            data = loads("{ 'foo': 'bar' }")
+            f = urlopen(req, data)
+            return False
+        else:
+            return self._reify_locally(indiv)
 
-        # NB: distribute this operation over the hash ring, through a remote queue
+
+    def _reify_locally (self, indiv):
+        """test/add a newly generated Individual into the Population locally (birth)"""
         if not indiv.key in self._bf:
             self._bf.update([indiv.key])
 
             # potentially the most expensive operation, deferred until remote reification
             indiv.get_fitness(self.feature_factory, force=True)
-            self._uniq_dht[indiv.key] = indiv
+            self._shard[indiv.key] = indiv
 
             return True
         else:
@@ -90,9 +106,9 @@ class Population (object):
 
     def evict (self, indiv):
         """remove an Individual from the Population (death)"""
-        if indiv.key in self._uniq_dht:
-            # only needs to be removed locally
-            del self._uniq_dht[indiv.key]
+        if indiv.key in self._shard:
+            # Individual only needs to be removed locally
+            del self._shard[indiv.key]
 
             # NB: serialize to disk (write behinds)
             url = self._get_storage_path(indiv)
@@ -100,7 +116,7 @@ class Population (object):
 
     def get_part_hist (self):
         """tally counts for the partial histogram of the fitness distribution"""
-        d = dict(Counter([ round(indiv.get_fitness(self.feature_factory, force=False), self._hist_granularity) for indiv in self._uniq_dht.values() ])).items()
+        d = (Counter([ round(indiv.get_fitness(self.feature_factory, force=False), self._hist_granularity) for indiv in self._shard.values() ])).items()
         d.sort(reverse=True)
         return d
 
@@ -116,7 +132,7 @@ class Population (object):
 
             sum += count
             percentile = sum / float(self.n_pop)
-            break_next = percentile >= self.selection_rate
+            break_next = percentile >= self._selection_rate
 
         return bin
 
@@ -126,30 +142,30 @@ class Population (object):
         return self.prefix + "/" + indiv.key
 
 
-    def _boost_diversity (self, current_gen, indiv, mutation_rate):
+    def _boost_diversity (self, current_gen, indiv):
         """randomly select other individuals and mutate them, to promote genetic diversity"""
-        if mutation_rate > random():
+        if self._mutation_rate > random():
             indiv.mutate(self, current_gen, self.feature_factory)
         else:
             self.evict(indiv)
 
 
-    def _select_parents (self, current_gen, fitness_cutoff, mutation_rate):
+    def _select_parents (self, current_gen, fitness_cutoff):
         """select the parents for the next generation"""
-        partition = map(lambda x: (x.get_fitness() >= fitness_cutoff, x), self._uniq_dht.values())
+        partition = map(lambda x: (x.get_fitness() >= fitness_cutoff, x), self._shard.values())
         good_fit = map(lambda x: x[1], filter(lambda x: x[0], partition))
         poor_fit = map(lambda x: x[1], filter(lambda x: not x[0], partition))
 
         # randomly select other individuals to promote genetic diversity, while removing the remnant
         for indiv in poor_fit:
-            self._boost_diversity(current_gen, indiv, mutation_rate)
+            self._boost_diversity(current_gen, indiv)
 
-        return self._uniq_dht.values()
+        return self._shard.values()
 
 
     def next_generation (self, current_gen, fitness_cutoff):
         """select/mutate/crossover parents to produce a new generation"""
-        parents = self._select_parents(current_gen, fitness_cutoff, self.mutation_rate)
+        parents = self._select_parents(current_gen, fitness_cutoff)
 
         for _ in xrange(self.n_pop - len(parents)):
             f, m = sample(parents, 2) 
@@ -157,7 +173,7 @@ class Population (object):
 
         # backfill to avoid the dreaded Population collapse
 
-        for _ in xrange(self.n_pop - len(self._uniq_dht.values())):
+        for _ in xrange(self.n_pop - len(self._shard.values())):
             # constructor pattern
             indiv = self.indiv_class()
             indiv.populate(current_gen, self.feature_factory.generate_features())
@@ -171,7 +187,7 @@ class Population (object):
 
     def report_summary (self):
         """report a summary of the evolution"""
-        for indiv in sorted(self._uniq_dht.values(), key=lambda x: x.get_fitness(), reverse=True):
+        for indiv in sorted(self._shard.values(), key=lambda x: x.get_fitness(), reverse=True):
             print self._get_storage_path(indiv)
             print "\t".join(["%0.4f" % indiv.get_fitness(), "%d" % indiv.gen, indiv.get_json_feature_set()])
 
@@ -242,7 +258,7 @@ if __name__=='__main__':
     ff = instantiate_class(ff_name)
 
     # initialize a Population of unique Individuals at generation 0
-    pop = Population(Individual(), ff_name, prefix="/tmp/exelixi")
+    pop = Population(Individual(), ff_name, prefix="/tmp/exelixi", hash_ring=None)
     pop.populate(0)
 
     # iterate N times or until a "good enough" solution is found

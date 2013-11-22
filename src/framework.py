@@ -33,6 +33,7 @@ class Framework (object):
         self.feature_factory = instantiate_class(ff_name)
         self.uuid = uuid1().hex
         self.prefix = prefix + self.uuid
+        self.hash_ring = None
         self.n_gen = self.feature_factory.n_gen
         self.current_gen = 0
 
@@ -53,7 +54,7 @@ if __name__=='__main__':
 
     ## NB: standalone mode
     # initialize a Population of unique Individuals at generation 0
-    pop = Population(Individual(), ff_name, prefix=fra.prefix)
+    pop = Population(Individual(), ff_name, prefix=fra.prefix, hash_ring=fra.hash_ring)
     pop.populate(fra.current_gen)
 
     # iterate N times or until a "good enough" solution is found

@@ -36,6 +36,7 @@ class Executor (object):
         self.server = wsgi.WSGIServer(('', port), self._response_handler)
         self.prefix = None
         self.shard_id = None
+        self.hash_ring = None
         self.ff_name = None
         self.pop = None
 
@@ -74,7 +75,7 @@ class Executor (object):
 
             print "%s: initializing population based on %s" % (APP_NAME, self.ff_name)
 
-            self.pop = Population(Individual(), self.ff_name, self.prefix)
+            self.pop = Population(Individual(), self.ff_name, self.prefix, self.hash_ring)
             self.pop.populate(0)
         else:
             # NB: you have dialed a wrong number!
