@@ -15,16 +15,20 @@ However, to get started quickly on a single node (i.e., your laptop) simply foll
 
 First, launch one Executor locally:
 
-    nohup executor.py 9311 &
+    nohup ./src/executor.py 9311 &
 
-Then launch a Framework to run the default [GA]:
+Then launch a Framework to run the default [GA] as an example:
 
-    ./driver.py localhost:9311 pop/init ./test
-    ./driver.py localhost:9311 stop ./test
+    ./src/driver.py localhost:9311 shard/config ./test
+    ./src/driver.py localhost:9311 pop/init ./test
+    ./src/driver.py localhost:9311 stop ./test
 
 Note that it is recommended to use [Anaconda] as the Python version 2.7 platform.
 
-<b>current status:</b> running one master/one slave only (e.g., on a laptop)
+
+## Current Status
+
+2013-11-21 running one master/one slave only (e.g., on a laptop)
 
 
 ## Background
@@ -65,23 +69,26 @@ For example:
 
 ### Components
 
+_FeatureFactory_:
+a base class for configuration and customization of the [GA] problem to be solved, which generates and evaluates feature sets
+
 _Individual_:
 an candidate solution, represented by a feature set plus a fitness value obtained by applying a fitness function to that feature set
 
 _Population_:
 a collection of Individuals, which in turn breed other Individuals
 
-_Fossil Record_:
+_FossilRecord_:
 an archive of Individuals that did not survive, persisted to durable storage and used to limit ergodic behaviors in search --
 and also used for analysis after an algorithm run terminates
+
+_Executor_:
+a service running on a slave node in the cluster, responsible for computing shards of the Population
 
 _Framework_:
 a long-running process that maintains state for the system parameters and models parameters,
 obtains resources for the Executors, coordinates Executors through successive generations,
 and reports results; also handles all of the user interaction
-
-_Executor_:
-a service running on a slave node in the cluster, responsible for computing shards of the Population
 
 
 ## Implementation
@@ -142,6 +149,9 @@ Resources allocated for each Executor must be sufficient to support a Population
 ### Executor
 
 An _executor_ is a service running on a [Apache Mesos] slave that:
+* maintains _operational state_ (e.g., system parameters) in memory
+  * *prefix*: unique directory prefix in [HDFS] based on generated [UUID]
+  * *shard_id*: unique identifier for this shard
 * implements an in-memory distributed cache backed by [HDFS] (with write-behinds and checkpoints)
 * provides a lookup service for past/present Individuals in the feature space via a [bloom filter]
 * generates a shard as a pool of "live" Individuals at initialization or recovery

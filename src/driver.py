@@ -39,5 +39,5 @@ if __name__=='__main__':
     req = Request("http://" + uri + "/" + path)
     req.add_header('Content-Type', 'application/json')
 
-    f = urlopen(req, dumps(data))
+    f = urlopen(req, data)
     print f.read()

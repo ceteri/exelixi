@@ -26,6 +26,12 @@ from random import randint, random, sample
 
 
 ######################################################################
+## globals
+
+APP_NAME = "Exelixi"
+
+
+######################################################################
 ## class definitions
 
 class Population (object):
