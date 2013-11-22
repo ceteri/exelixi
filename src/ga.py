@@ -40,15 +40,18 @@ def instantiate_class (class_path):
 ## class definitions
 
 class Population (object):
-    def __init__ (self, indiv_instance, ff_name, prefix="/tmp/exelixi", n_pop=11, term_limit=0.0, hist_granularity=3):
+    def __init__ (self, indiv_instance, ff_name, prefix="/tmp/exelixi"):
         self.indiv_class = indiv_instance.__class__
         self.feature_factory = instantiate_class(ff_name)
 
         self.prefix = prefix
-        self.n_pop = n_pop
+        self.n_pop = self.feature_factory.n_pop
 
-        self._term_limit = term_limit
-        self._hist_granularity = hist_granularity
+        self._term_limit = self.feature_factory.term_limit
+        self._hist_granularity = self.feature_factory.hist_granularity
+
+        self.selection_rate = self.feature_factory.selection_rate
+        self.mutation_rate = self.feature_factory.mutation_rate
 
         self._uniq_dht = {}
         self._bf = BloomFilter(num_bytes=125, num_probes=14, iterable=[])
@@ -102,7 +105,7 @@ class Population (object):
         return d
 
 
-    def get_fitness_cutoff (self, selection_rate):
+    def get_fitness_cutoff (self):
         """determine fitness cutoff (bin lower bounds) for the parent selection filter"""
         sum = 0
         break_next = False
@@ -113,7 +116,7 @@ class Population (object):
 
             sum += count
             percentile = sum / float(self.n_pop)
-            break_next = percentile >= selection_rate
+            break_next = percentile >= self.selection_rate
 
         return bin
 
@@ -144,9 +147,9 @@ class Population (object):
         return self._uniq_dht.values()
 
 
-    def next_generation (self, current_gen, fitness_cutoff, mutation_rate):
+    def next_generation (self, current_gen, fitness_cutoff):
         """select/mutate/crossover parents to produce a new generation"""
-        parents = self._select_parents(current_gen, fitness_cutoff, mutation_rate)
+        parents = self._select_parents(current_gen, fitness_cutoff, self.mutation_rate)
 
         for _ in xrange(self.n_pop - len(parents)):
             f, m = sample(parents, 2) 
@@ -239,17 +242,17 @@ if __name__=='__main__':
     ff = instantiate_class(ff_name)
 
     # initialize a Population of unique Individuals at generation 0
-    pop = Population(Individual(), ff_name, prefix="/tmp/exelixi", n_pop=ff.n_pop, term_limit=ff.term_limit)
+    pop = Population(Individual(), ff_name, prefix="/tmp/exelixi")
     pop.populate(0)
 
     # iterate N times or until a "good enough" solution is found
     for current_gen in xrange(ff.n_gen):
-        fitness_cutoff = pop.get_fitness_cutoff(selection_rate=ff.selection_rate)
+        fitness_cutoff = pop.get_fitness_cutoff()
 
         if pop.test_termination(current_gen):
             break
 
-        pop.next_generation(current_gen, fitness_cutoff, mutation_rate=ff.mutation_rate)
+        pop.next_generation(current_gen, fitness_cutoff)
 
     # report summary
     pop.report_summary()

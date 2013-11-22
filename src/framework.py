@@ -28,10 +28,12 @@ import sys
 ## class definitions
 
 class Framework (object):
-    def __init__ (self, prefix="/tmp/exelixi/"):
+    def __init__ (self, ff_name, prefix="/tmp/exelixi/"):
         # system parameters, for representing operational state
+        self.feature_factory = instantiate_class(ff_name)
         self.uuid = uuid1().hex
         self.prefix = prefix + self.uuid
+        self.n_gen = self.feature_factory.n_gen
         self.current_gen = 0
 
 
@@ -39,27 +41,32 @@ if __name__=='__main__':
     ## Framework operations:
 
     # parse command line options
+    if len(sys.argv) < 2:
+        print "usage:\n  %s <feature factory>" % (sys.argv[0])
+        sys.exit(1)
+
     ff_name = sys.argv[1]
     ff = instantiate_class(ff_name)
 
     fra = Framework(ff_name)
     print "%s: framework launching at %s based on %s..." % (APP_NAME, fra.prefix, ff_name)
 
+    ## NB: standalone mode
     # initialize a Population of unique Individuals at generation 0
-    pop = Population(Individual(), ff_name, prefix=fra.prefix, n_pop=ff.n_pop, term_limit=ff.term_limit)
+    pop = Population(Individual(), ff_name, prefix=fra.prefix)
     pop.populate(fra.current_gen)
 
     # iterate N times or until a "good enough" solution is found
 
-    while fra.current_gen < ff.n_gen:
+    while fra.current_gen < fra.n_gen:
         ## NB: save state to Zookeeper
 
-        fitness_cutoff = pop.get_fitness_cutoff(selection_rate=ff.selection_rate)
+        fitness_cutoff = pop.get_fitness_cutoff()
 
         if pop.test_termination(fra.current_gen):
             break
 
-        pop.next_generation(fra.current_gen, fitness_cutoff, mutation_rate=ff.mutation_rate)
+        pop.next_generation(fra.current_gen, fitness_cutoff)
         fra.current_gen += 1
 
     # report summary

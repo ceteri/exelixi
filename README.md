@@ -38,15 +38,22 @@ Note that it is recommended to use [Anaconda] as the Python version 2.7 platform
 * shard checkpoint to [HDFS]
 * shard recovery from [HDFS]
 * saving/recovering Framework state in [Zookeeper]
-* optimize [bloom filter] based on the *max_pop* and *n_exe* parameters
+* optimize the [bloom filter] settings as a function of the *max_pop* and *n_exe* parameters
 
-Troubleshooing for Mesos launch:
-to get <code>mesos.py</code> installed on [Elastic Mesos](https://elastic.mesosphere.io/)
+Troubleshooing for [Apache Mesos] launch:
+to get <code>mesos.py</code> installed on [Elastic Mesos](https://elastic.mesosphere.io/) on the master and each of the slaves:
 
-    sudo apt-get install python-setuptools
-    wget https://s3.amazonaws.com/downloads.mesosphere.io/master/ubuntu/12.04/mesos-0.14.0-trunk.egg
-    easy_install mesos-0.14.0-trunk.egg
+    sudo apt-get install python-setuptools ; \
+    wget https://s3.amazonaws.com/downloads.mesosphere.io/master/ubuntu/12.04/mesos-0.14.0-trunk.egg ; \
+    sudo easy_install mesos-0.14.0-trunk.egg
 
+Then on the master:
+
+    sudo aptitude install python-protobuf
+
+    wget https://raw.github.com/apache/mesos/master/src/examples/python/test_framework.py ; \
+    wget https://github.com/apache/mesos/blob/master/src/examples/python/test_executor.py
+    python test_framework.py localhost:5050
 
 
 ## Background

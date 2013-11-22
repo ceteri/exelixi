@@ -36,10 +36,8 @@ class Executor (object):
         self.server = wsgi.WSGIServer(('', port), self._response_handler)
         self.prefix = None
         self.shard_id = None
-        self.pop = None
         self.ff_name = None
-        self.n_pop = None
-        self.term_limit = None
+        self.pop = None
 
 
     def start (self):
@@ -49,8 +47,14 @@ class Executor (object):
 
     def stop (self, *args, **kwargs):
         """stop the service"""
-        print "%s: executor service stopping... you can safely ignore any exceptions that follow." % (APP_NAME)
-        self.server.stop()
+        payload = args[0]
+
+        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            print "%s: executor service stopping... you can safely ignore any exceptions that follow." % (APP_NAME)
+            self.server.stop()
+        else:
+            # NB: you have dialed a wrong number!
+            pass
 
 
     def shard_config (self, *args, **kwargs):
@@ -64,34 +68,40 @@ class Executor (object):
     def pop_init (self, *args, **kwargs):
         """initialize a Population of unique Individuals on this shard at generation 0"""
         payload = args[0]
-        print "%s: initializing population" % (APP_NAME)
 
-        self.ff_name = payload["ff_name"]
-        self.n_pop = payload["n_pop"]
-        self.term_limit = payload["term_limit"]
+        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            self.ff_name = payload["ff_name"]
 
-        self.pop = Population(Individual(), self.ff_name, self.prefix, self.n_pop, self.term_limit)
-        self.pop.populate(0)
+            print "%s: initializing population based on %s" % (APP_NAME, self.ff_name)
+
+            self.pop = Population(Individual(), self.ff_name, self.prefix)
+            self.pop.populate(0)
+        else:
+            # NB: you have dialed a wrong number!
+            pass
 
 
     def pop_next (self, *args, **kwargs):
         """iterate N times or until a 'good enough' solution is found"""
         payload = args[0]
-        selection_rate = payload["selection_rate"]
-        mutation_rate = payload["mutation_rate"]
 
-        n_gen = 5
+        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            self.current_gen = payload["current_gen"]
+            n_gen = 5
 
-        for current_gen in xrange(n_gen):
-            fitness_cutoff = self.pop.get_fitness_cutoff(selection_rate)
+            for current_gen in xrange(n_gen):
+                fitness_cutoff = self.pop.get_fitness_cutoff()
 
-            if self.pop.test_termination(current_gen):
-                break
+                if self.pop.test_termination(current_gen):
+                    break
 
-            self.pop.next_generation(current_gen, fitness_cutoff, mutation_rate)
+                self.pop.next_generation(current_gen, fitness_cutoff)
 
-        # report summary
-        self.pop.report_summary()
+            # report summary
+            self.pop.report_summary()
+        else:
+            # NB: you have dialed a wrong number!
+            pass
 
 
     def _response_handler (self, env, start_response):
@@ -243,7 +253,8 @@ class Executor (object):
             # shutdown the service
             start_response('200 OK', [('Content-Type', 'text/plain')])
 
-            gl = Greenlet(self.stop)
+            payload = loads(env['wsgi.input'].read())
+            gl = Greenlet(self.stop, payload)
             gl.start_later(1)
 
             body.put("Goodbye\r\n")
@@ -270,4 +281,3 @@ if __name__=='__main__':
     # launch service
     exe = Executor(port=port)
     exe.start()
-

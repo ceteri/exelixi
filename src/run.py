@@ -30,6 +30,7 @@ class FeatureFactory (object):
         self.n_pop = 11
         self.n_gen = 5
         self.term_limit = 9.0e-03
+        self.hist_granularity = 3
         self.selection_rate = 0.2
         self.mutation_rate = 0.02
 
