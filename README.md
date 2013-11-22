@@ -44,8 +44,8 @@ Troubleshooing for [Apache Mesos] launch:
 to get <code>mesos.py</code> installed on [Elastic Mesos](https://elastic.mesosphere.io/) on the master and each of the slaves:
 
     sudo apt-get install python-setuptools ; \
-    wget https://s3.amazonaws.com/downloads.mesosphere.io/master/ubuntu/12.04/mesos-0.14.0-trunk.egg ; \
-    sudo easy_install mesos-0.14.0-trunk.egg
+    wget http://downloads.mesosphere.io/master/ubuntu/12.10/mesos_0.14.0-rc4_amd64.egg ; \
+    sudo easy_install mesos_0.14.0-rc4_amd64.egg
 
 Then on the master:
 
@@ -53,6 +53,7 @@ Then on the master:
 
     wget https://raw.github.com/apache/mesos/master/src/examples/python/test_framework.py ; \
     wget https://github.com/apache/mesos/blob/master/src/examples/python/test_executor.py
+
     python test_framework.py localhost:5050
 
 
