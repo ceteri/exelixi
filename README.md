@@ -18,18 +18,18 @@ running <b>Exelixi</b> either on [Apache Mesos] or in *standalone mode*.
 ### System Dependencies
 
 * [Apache Mesos] 0.14.0 rc4
-* Python version 2.7
-* recommended: [Anaconda] as the Python platform
+* Python version 2.7, with [Anaconda] as the recommended Python platform
 
 
 ### Current Status
 
-2013-11-23 first successful launch of customized framework/executor on [Elastic Mesos]
-2013-11-21 running one master/one slave only (e.g., on a laptop)
+* 2013-11-23 first successful launch of customized framework/executor on [Elastic Mesos]
+* 2013-11-21 running one master/one slave only (e.g., on a laptop)
 
 
 ### TODO
 
+* remote shell script to manage all master/slave installations
 * integrate [Apache Mesos] <code>test_framework.py</code> and <code>test_executor.py</code>
 * articulate all of the [REST] endpoint services
 * support for multiple Executors in the [hash ring]
@@ -73,16 +73,16 @@ Login to each of the slaves, using:
 Repeat the sequence of commands listed above.
 Great, your installation should now be complete and ready to roll!
 
-Now connect into the directory for the <b>Exelixi</b> distribution and launch the Framework,
+Connect into the directory for the <b>Exelixi</b> distribution and launch the Framework,
 which in turn launches the Executors remotely:
 
     python test_framework.py localhost:5050
 
-If this all runs successfully, the log should conclude with a final line:
+If everything runs successfully, the log should conclude with a final line:
 
     all tasks done, and all messages received; exiting
 
-See a GitHub gist of a successful run at [https://gist.github.com/ceteri/7609046]
+See a [GitHub gist](https://gist.github.com/ceteri/7609046) for an example of a successful run.
 
 
 ### Usage for Standalone Mode
