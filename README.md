@@ -268,6 +268,7 @@ In general, limited amounts of data loss serve to add stochastic aspects to the 
 
 ## Acknowledgements
 
+Heartfelt kudos to
 [Bill Worzel](http://www.linkedin.com/pub/bill-worzel/12/9b4/4b3),
 [Niklas Nielsen](https://github.com/nqn),
 [Jason Dusek](https://github.com/solidsnack),
@@ -285,7 +286,6 @@ In general, limited amounts of data loss serve to add stochastic aspects to the 
 
 ### TODO
 
-* remote shell script to manage all master/slave installations
 * integrate [Apache Mesos] <code>test_framework.py</code> and <code>test_executor.py</code>
 * articulate all of the [REST] endpoint services
 * support for multiple Executors in the [hash ring]
