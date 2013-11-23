@@ -8,10 +8,86 @@ On the other hand, it provides a general-purpose [GA] platform that emphasizes _
 while leveraging the wealth of available Python analytics packages.
 
 
-## Getting Started
+## Quick Start
 
-More details are given below -- in terms of customizing the [GA] platform for solving specific problems.
-However, to get started quickly on a single node (i.e., your laptop) simply follow two steps.
+More details are given below about customizing this framework for solving specific [GA] problems.
+The following instructions will help you get started quickly, 
+running <b>Exelixi</b> either on [Apache Mesos] or in *standalone mode*.
+
+
+### System Dependencies
+
+* [Apache Mesos] 0.14.0 rc4
+* Python version 2.7
+* recommended: [Anaconda] as the Python platform
+
+
+### Current Status
+
+2013-11-23 first successful launch of customized framework/executor on [Elastic Mesos]
+2013-11-21 running one master/one slave only (e.g., on a laptop)
+
+
+### TODO
+
+* integrate [Apache Mesos] <code>test_framework.py</code> and <code>test_executor.py</code>
+* articulate all of the [REST] endpoint services
+* support for multiple Executors in the [hash ring]
+* shard checkpoint to [HDFS]
+* shard recovery from [HDFS]
+* saving/recovering Framework state in [Zookeeper]
+* optimize [bloom filter] settings as a function of the *max_pop* and *n_exe* parameters
+* <code>Makefile</code> to build tarball for Executor downloads
+
+
+### Usage for [Apache Mesos] launch
+
+First, launch an [Apache Mesos] cluster.
+The following instructions are based on using the [Elastic Mesos] service,
+which uses Ubuntu Linux servers running on [Amazon AWS].
+However, the basic outline of steps should apply in the general case.
+
+Once you have confirmation that your cluster is running --
+[Elastic Mesos] sends you an email messages with a list of masters and slaves --
+then use <code>ssh</code> to login on any of the masters:
+
+    ssh -A -l ubuntu <master-public-ip>
+
+You must install the [Python bindings](https://github.com/apache/mesos/tree/master/src/python) for [Apache Mesos],
+In this instance the [Apache Mesos] version is *0.14.0-rc4*, so you must install the [Python egg] for that exact release.
+Also, you need to install the <b>Exelixi</b> source.
+
+On the master, run this sequence of commands:
+
+    sudo aptitude -y install python-setuptools ; \
+    sudo aptitude -y install python-protobuf ; \
+    wget http://downloads.mesosphere.io/master/ubuntu/12.10/mesos_0.14.0-rc4_amd64.egg ; \
+    sudo easy_install mesos_0.14.0-rc4_amd64.egg ; \
+    wget https://github.com/ceteri/exelixi/archive/master.zip ; \
+    unzip master.zip
+
+Login to each of the slaves, using:
+
+    ssh <slave-public-ip>
+
+Repeat the sequence of commands listed above.
+Great, your installation should now be complete and ready to roll!
+
+Now connect into the directory for the <b>Exelixi</b> distribution and launch the Framework,
+which in turn launches the Executors remotely:
+
+    python test_framework.py localhost:5050
+
+If this all runs successfully, the log should conclude with a final line:
+
+    all tasks done, and all messages received; exiting
+
+See a GitHub gist of a successful run at [https://gist.github.com/ceteri/7609046]
+
+
+### Usage for Standalone Mode
+
+To get started quickly on a single node (i.e., your laptop) simply follow two steps.
 
 First, launch one Executor locally:
 
@@ -23,55 +99,6 @@ Then launch a Framework to run the default [GA] as an example:
     ./src/driver.py localhost:9311 pop/init ./test
     ./src/driver.py localhost:9311 pop/next ./test
     ./src/driver.py localhost:9311 stop ./test
-
-Note that it is recommended to use [Anaconda] as the Python version 2.7 platform.
-
-
-## Current Status
-
-2013-11-21 running one master/one slave only (e.g., on a laptop)
-
-### TODO:
-* integration of [Apache Mesos] <code>test_framework.py</code> and <code>test_executor.py</code>
-* <code>Makefile</code> to build tarball for Executor downloads
-* support for multiple Executors in the [hash ring]
-* shard checkpoint to [HDFS]
-* shard recovery from [HDFS]
-* saving/recovering Framework state in [Zookeeper]
-* optimize the [bloom filter] settings as a function of the *max_pop* and *n_exe* parameters
-
-Troubleshooing for [Apache Mesos] launch:
-to get <code>mesos.py</code> installed on [Elastic Mesos](https://elastic.mesosphere.io/) on the master and each of the slaves:
-
-    sudo apt-get install python-setuptools ; \
-    wget http://downloads.mesosphere.io/master/ubuntu/12.10/mesos_0.14.0-rc4_amd64.egg ; \
-    sudo easy_install mesos_0.14.0-rc4_amd64.egg ; \
-    sudo aptitude -y install python-protobuf ; \
-    wget https://raw.github.com/apache/mesos/master/src/examples/python/test_executor.py ; \
-    chmod +x test_executor.py
-
-Next, USE the [Apache Mesos] web-based console to determine the current "leader" among the masters, and dump its info:
-
-    http://<master>:5050/master/state.json
-
-Within that [JSON] dump, search for "leader" to find the internal IP address of the leader master. 
-Then <code>ssh</code> into that box:
-
-    wget https://raw.github.com/apache/mesos/master/src/examples/python/test_framework.py
-
-Now edit the <code>test_framework.py</code> source, to update the following line (at approximately line 224) to define the path correctly:
-
-    executor.command.value = os.path.abspath("/home/ubuntu/test_executor.py")
-
-Then run the framework/executor test:
-
-    python test_framework.py <leader-master-internal-ip>:5050
-
-If it runs successfully, the log should complete with the final line:
-
-    All tasks done, and all messages received, exiting
-
-See a GitHub gist of a successful run at [https://gist.github.com/ceteri/7609046]
 
 
 ## Background
@@ -247,12 +274,15 @@ In the latter case when an Executor process is lost, the Framework can simply la
 In general, limited amounts of data loss serve to add stochastic aspects to the search, and may help accelerate evolution.
 
 
+[Amazon AWS]: http://aws.amazon.com/
 [Anaconda]: https://store.continuum.io/cshop/anaconda/
 [Apache Mesos]: http://mesos.apache.org/
+[Elastic Mesos]: https://elastic.mesosphere.io/
 [GA]: http://en.wikipedia.org/wiki/Genetic_algorithm
 [HDFS]: http://hadoop.apache.org/
 [JSON]: http://www.json.org/
 [Marathon]: https://github.com/mesosphere/marathon
+[Python egg]: https://wiki.python.org/moin/egg
 [REST]: http://www.ics.uci.edu/~taylor/documents/2002-REST-TOIT.pdf
 [SHA-3]: http://en.wikipedia.org/wiki/SHA-3
 [UUID]: http://tools.ietf.org/html/rfc4122.html

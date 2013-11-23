@@ -10,12 +10,13 @@ import urllib2
 import mesos
 import mesos_pb2
 
-TOTAL_TASKS = 5
-TASK_CPUS = 1
-TASK_MEM = 32
-
 
 class TestScheduler (mesos.Scheduler):
+    TOTAL_TASKS = 5
+    TASK_CPUS = 1
+    TASK_MEM = 32
+
+
     def __init__ (self, executor):
         self.executor = executor
         self.taskData = {}
@@ -36,7 +37,7 @@ class TestScheduler (mesos.Scheduler):
             tasks = []
             print "got resource offer %s" % offer.id.value
 
-            if self.tasksLaunched < TOTAL_TASKS:
+            if self.tasksLaunched < TestScheduler.TOTAL_TASKS:
                 tid = self.tasksLaunched
                 self.tasksLaunched += 1
 
@@ -51,12 +52,12 @@ class TestScheduler (mesos.Scheduler):
                 cpus = task.resources.add()
                 cpus.name = "cpus"
                 cpus.type = mesos_pb2.Value.SCALAR
-                cpus.scalar.value = TASK_CPUS
+                cpus.scalar.value = TestScheduler.TASK_CPUS
 
                 mem = task.resources.add()
                 mem.name = "mem"
                 mem.type = mesos_pb2.Value.SCALAR
-                mem.scalar.value = TASK_MEM
+                mem.scalar.value = TestScheduler.TASK_MEM
 
                 tasks.append(task)
                 self.taskData[task.task_id.value] = (offer.slave_id, task.executor.executor_id)                  
@@ -71,7 +72,7 @@ class TestScheduler (mesos.Scheduler):
         if update.state == mesos_pb2.TASK_FINISHED:
             self.tasksFinished += 1
 
-            if self.tasksFinished == TOTAL_TASKS:
+            if self.tasksFinished == TestScheduler.TOTAL_TASKS:
                 print "all tasks done, waiting for final framework message"
 
             slave_id, executor_id = self.taskData[update.task_id.value]
@@ -84,7 +85,7 @@ class TestScheduler (mesos.Scheduler):
         self.messagesReceived += 1
         print "received message:", repr(str(message))
 
-        if self.messagesReceived == TOTAL_TASKS:
+        if self.messagesReceived == TestScheduler.TOTAL_TASKS:
             if self.messagesReceived != self.messagesSent:
                 print "sent", self.messagesSent, "but received", self.messagesReceived
                 sys.exit(1)
@@ -107,10 +108,11 @@ if __name__=='__main__':
     # initialize an executor
     executor = mesos_pb2.ExecutorInfo()
     executor.executor_id.value = "default"
-    executor.command.value = os.path.abspath("/home/ubuntu/exelixi/test_executor.py")
+    executor.command.value = os.path.abspath("/home/ubuntu/exelixi-master/test_executor.py")
     executor.name = "Test Executor (Python)"
     executor.source = "python_test"
 
+    # initialize the framework
     framework = mesos_pb2.FrameworkInfo()
     framework.user = "" # Have Mesos fill in the current user.
     framework.name = "Test Framework (Python)"
