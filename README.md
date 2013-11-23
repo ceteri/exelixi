@@ -46,14 +46,32 @@ to get <code>mesos.py</code> installed on [Elastic Mesos](https://elastic.mesosp
     sudo apt-get install python-setuptools ; \
     wget http://downloads.mesosphere.io/master/ubuntu/12.10/mesos_0.14.0-rc4_amd64.egg ; \
     sudo easy_install mesos_0.14.0-rc4_amd64.egg ; \
-    sudo aptitude -y install python-protobuf
+    sudo aptitude -y install python-protobuf ; \
+    wget https://raw.github.com/apache/mesos/master/src/examples/python/test_executor.py ; \
+    chmod +x test_executor.py
 
-Then on the master:
+Next, USE the [Apache Mesos] web-based console to determine the current "leader" among the masters, and dump its info:
 
-    wget https://raw.github.com/apache/mesos/master/src/examples/python/test_framework.py ; \
-    wget https://raw.github.com/apache/mesos/master/src/examples/python/test_executor.py
+    http://<master>:5050/master/state.json
 
-    python test_framework.py localhost:5050
+Within that [JSON] dump, search for "leader" to find the internal IP address of the leader master. 
+Then <code>ssh</code> into that box:
+
+    wget https://raw.github.com/apache/mesos/master/src/examples/python/test_framework.py
+
+Now edit the <code>test_framework.py</code> source, to update the following line (at approximately line 224) to define the path correctly:
+
+    executor.command.value = os.path.abspath("/home/ubuntu/test_executor.py")
+
+Then run the framework/executor test:
+
+    python test_framework.py <leader-master-internal-ip>:5050
+
+If it runs successfully, the log should complete with the final line:
+
+    All tasks done, and all messages received, exiting
+
+See a GitHub gist of a successful run at [https://gist.github.com/ceteri/7609046]
 
 
 ## Background
