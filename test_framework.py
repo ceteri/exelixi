@@ -1,20 +1,17 @@
 #!/usr/bin/env python
 
 
-import json
+import cluster
+import mesos
+import mesos_pb2
 import os
 import sys
 import time
-import urllib2
-
-import mesos
-import mesos_pb2
 
 
 class MesosScheduler (mesos.Scheduler):
     # https://github.com/apache/mesos/blob/master/src/python/src/mesos.py
 
-    EXE_PATH = "/home/ubuntu/exelixi-master/test_executor.py"
     TOTAL_TASKS = 5
     TASK_CPUS = 1
     TASK_MEM = 32
@@ -194,13 +191,11 @@ if __name__=='__main__':
         print "Usage:\n  %s <master host:port>" % sys.argv[0]
         sys.exit(1)
 
-    # determine the leader among the Mesos masters
-    response = urllib2.urlopen("http://" + sys.argv[1] + "/master/state.json")
-    state = json.loads(response.read())
+    master_uri = cluster.get_master_leader(sys.argv[1])
+    exe_path = "/home/ubuntu/exelixi-master/test_executor.py"
 
-    master_uri = state["leader"].split("@")[1]
-    print master_uri
+    driver = MesosScheduler.start_framework(master_uri, exe_path)
 
-    driver = MesosScheduler.start_framework(master_uri, MesosScheduler.EXE_PATH)
     ## NB: schedule tasks on the remote Executor instances
+
     MesosScheduler.stop_framework(driver)

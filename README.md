@@ -49,31 +49,26 @@ You must install the [Python bindings](https://github.com/apache/mesos/tree/mast
 In this instance the [Apache Mesos] version is *0.14.0-rc4*, so you must install the [Python egg] for that exact release.
 Also, you need to install the <b>Exelixi</b> source.
 
-On the master, run this sequence of commands:
+On the master, download the <code>master</code> branch of the <b>Exelixi</b> code repo on GitHub and install the required libraries:
 
-    sudo aptitude -y install python-setuptools ; \
-    sudo aptitude -y install python-protobuf ; \
-    wget http://downloads.mesosphere.io/master/ubuntu/12.10/mesos_0.14.0-rc4_amd64.egg ; \
-    sudo easy_install mesos_0.14.0-rc4_amd64.egg ; \
-    wget https://github.com/ceteri/exelixi/archive/master.zip ; \
+    wget https://github.com/ceteri/exelixi/archive/master.zip
     unzip master.zip
+    cd exelixi-master
+    ./bin/local_install.sh
 
-Login to each of the slaves, using:
-
-    ssh <slave-public-ip>
-
-Repeat the sequence of commands listed above.
-You can test the installation simply by attempting to import the <code>mesos</code> package into Python:
+You can test the installation at any point simply by attempting to import the <code>mesos</code> package into Python:
 
     python -c 'import mesos'
 
 If there is no <code>ImportError</code> exception thrown, then your installation should be complete.
+Next, run the installation commands on each of the slaves:
+
+    python ./src/cluster.py localhost:5050 | ./bin/install.sh
+
 Great, ready to roll!
+Now launch the Framework, which in turn launches the Executors remotely on slave nodes:
 
-Connect into the directory for the <b>Exelixi</b> distribution and launch the Framework,
-which in turn launches the Executors remotely:
-
-    python test_framework.py localhost:5050
+    python ./test_framework.py localhost:5050
 
 If everything runs successfully, the log should conclude with a final line:
 
