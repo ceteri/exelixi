@@ -9,8 +9,17 @@ import mesos
 import mesos_pb2
 
 
-class TestExecutor (mesos.Executor):
+class MesosExecutor (mesos.Executor):
+    # https://github.com/apache/mesos/blob/master/src/python/src/mesos.py
+
     def launchTask (self, driver, task):
+        """
+        Invoked when a task has been launched on this executor
+        (initiated via Scheduler.launchTasks).  Note that this task
+        can be realized with a thread, a process, or some simple
+        computation, however, no other callbacks will be invoked on
+        this executor until this callback has returned.
+        """
 
         # create a thread to run the task: tasks should always be run
         # in new threads or processes, rather than inside launchTask
@@ -34,13 +43,18 @@ class TestExecutor (mesos.Executor):
             driver.sendStatusUpdate(update)
             print "sent status update 2..."
 
-
         # now run the requested task
         thread = threading.Thread(target=run_task)
         thread.start()
 
 
     def frameworkMessage (self, driver, message):
+        """
+        Invoked when a framework message has arrived for this
+        executor. These messages are best effort; do not expect a
+        framework message to be retransmitted in any reliable fashion.
+        """
+
         # send the message back to the scheduler
         driver.sendFrameworkMessage(message)
 
@@ -48,5 +62,5 @@ class TestExecutor (mesos.Executor):
 if __name__=='__main__':
     print "Starting executor..."
 
-    driver = mesos.MesosExecutorDriver(TestExecutor())
+    driver = mesos.MesosExecutorDriver(MesosExecutor())
     sys.exit(0 if driver.run() == mesos_pb2.DRIVER_STOPPED else 1)

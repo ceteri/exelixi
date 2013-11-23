@@ -65,11 +65,11 @@ Login to each of the slaves, using:
 Repeat the sequence of commands listed above.
 You can test the installation simply by attempting to import the <code>mesos</code> package into Python:
 
-    $ python
-    >>> import mesos
-    >>>
+    python -c 'import mesos'
 
-If there is no exception thrown, then your installation should be complete and ready to roll!
+If there is no <code>ImportError</code> exception thrown, then your installation should be complete.
+Great, ready to roll!
+
 Connect into the directory for the <b>Exelixi</b> distribution and launch the Framework,
 which in turn launches the Executors remotely:
 
