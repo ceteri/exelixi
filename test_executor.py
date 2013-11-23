@@ -20,7 +20,7 @@ class TestExecutor (mesos.Executor):
             update = mesos_pb2.TaskStatus()
             update.task_id.value = task.task_id.value
             update.state = mesos_pb2.TASK_RUNNING
-            update.data = "running %s" % task.task_id.value
+            update.data = 'running: data with a \0 byte'
             driver.sendStatusUpdate(update)
             print "sent status update 1..."
 
@@ -30,7 +30,7 @@ class TestExecutor (mesos.Executor):
             update = mesos_pb2.TaskStatus()
             update.task_id.value = task.task_id.value
             update.state = mesos_pb2.TASK_FINISHED
-            update.data = "completed %s" % task.task_id.value
+            update.data = 'complete: data with a \0 byte'
             driver.sendStatusUpdate(update)
             print "sent status update 2..."
 

@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
 
+import json
 import os
 import sys
 import time
+import urllib2
 
 import mesos
 import mesos_pb2
@@ -96,9 +98,16 @@ if __name__=='__main__':
         print "Usage:\n  %s <leader master host:port>" % sys.argv[0]
         sys.exit(1)
 
+    # determine the leader among the Mesos masters
+    response = urllib2.urlopen("http://" + sys.argv[1] + "/master/state.json")
+    data = json.loads(response.read())
+    master_uri = data["leader"].split("@")[1]
+    print master_uri
+
+    # initialize an executor
     executor = mesos_pb2.ExecutorInfo()
     executor.executor_id.value = "default"
-    executor.command.value = os.path.abspath("/home/ubuntu/test_executor.py")
+    executor.command.value = os.path.abspath("/home/ubuntu/exelixi/test_executor.py")
     executor.name = "Test Executor (Python)"
     executor.source = "python_test"
 
@@ -128,9 +137,9 @@ if __name__=='__main__':
         credential.principal = os.getenv("DEFAULT_PRINCIPAL")
         credential.secret = os.getenv("DEFAULT_SECRET")
 
-        driver = mesos.MesosSchedulerDriver(TestScheduler(executor), framework, sys.argv[1], credential)
+        driver = mesos.MesosSchedulerDriver(TestScheduler(executor), framework, master_uri, credential)
     else:
-        driver = mesos.MesosSchedulerDriver(TestScheduler(executor), framework, sys.argv[1])
+        driver = mesos.MesosSchedulerDriver(TestScheduler(executor), framework, master_uri)
 
     # ensure that the driver process terminates
     status = 0 if driver.run() == mesos_pb2.DRIVER_STOPPED else 1
