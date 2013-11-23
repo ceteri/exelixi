@@ -3,7 +3,16 @@
 <b>Exelixi</b> is a distributed framework for running [genetic algorithms] at scale.
 The framework is based on [Apache Mesos] and the code is mostly implemented in Python.
 
-On the one hand, this project provides a tutorial for building distributed frameworks in [Apache Mesos].
+Why build *yet another framework* for this purpose?
+[Apache Hadoop](http://hadoop.apache.org/) would be quite a poor fit, due to requirements for in-memory iteration.
+[Apache Spark](http://spark.incubator.apache.org/index.html) could fit the problem more closely, in terms of iterative tasks.
+However, task overhead can become high in proportion to tasks being performed ("small file problem"), 
+plus there is a considerable amount of configuration required at scale.
+Server-side operations and coprocessors in [Apache Cassandra](http://cassandra.apache.org/) or [Apache HBase](http://hbase.apache.org/)
+might also provide a good fit for [GA] processing, but both of those also require lots of configuration.
+Moreover, many of the features for these more heavyweight frameworks are not needed.
+
+On the one hand, <b>Exelixi</b> provides the basis for a tutorial for building distributed frameworks in [Apache Mesos].
 On the other hand, it provides a general-purpose [GA] platform that emphasizes _scalability_ and _fault tolerance_,
 while leveraging the wealth of available Python analytics packages.
 
@@ -19,25 +28,8 @@ running <b>Exelixi</b> either on [Apache Mesos] or in *standalone mode*.
 
 * [Apache Mesos] 0.14.0 rc4
 * Python version 2.7, with [Anaconda] as the recommended Python platform
-
-
-### Current Status
-
-* 2013-11-23 first successful launch of customized framework/executor on [Elastic Mesos]
-* 2013-11-21 running one master/one slave only (e.g., on a laptop)
-
-
-### TODO
-
-* remote shell script to manage all master/slave installations
-* integrate [Apache Mesos] <code>test_framework.py</code> and <code>test_executor.py</code>
-* articulate all of the [REST] endpoint services
-* support for multiple Executors in the [hash ring]
-* shard checkpoint to [HDFS]
-* shard recovery from [HDFS]
-* saving/recovering Framework state in [Zookeeper]
-* optimize [bloom filter] settings as a function of the *max_pop* and *n_exe* parameters
-* <code>Makefile</code> to build tarball for Executor downloads
+* Python [Setuptools](https://pypi.python.org/pypi/setuptools)
+* Python [Protobuf](https://pypi.python.org/pypi/protobuf)
 
 
 ### Usage for [Apache Mesos] launch
@@ -71,8 +63,13 @@ Login to each of the slaves, using:
     ssh <slave-public-ip>
 
 Repeat the sequence of commands listed above.
-Great, your installation should now be complete and ready to roll!
+You can test the installation simply by attempting to import the <code>mesos</code> package into Python:
 
+    $ python
+    >>> import mesos
+    >>>
+
+If there is no exception thrown, then your installation should be complete and ready to roll!
 Connect into the directory for the <b>Exelixi</b> distribution and launch the Framework,
 which in turn launches the Executors remotely:
 
@@ -161,7 +158,7 @@ obtains resources for the Executors, coordinates Executors through successive ge
 and reports results; also handles all of the user interaction
 
 
-### FeatureFactory
+### Class: FeatureFactory
 
 To implement a [GA] in <b>Exelixi</b>,
 subclass the _FeatureFactory_ class (in <code>src/run.py</code>) to customize the following operations:
@@ -184,7 +181,7 @@ Then customize the model parameters:
 In general, the other classes cover most use cases and rarely need modifications.
 
 
-### Individual
+### Class: Individual
 
 An _Individual_ represents a candidate solution.
 Individuals get persisted in durable storage as key/value pairs.
@@ -203,7 +200,7 @@ In that case, the Individual would be represented in tab-separated format (TSV) 
     hdfs://048e9fae50c311e3a4cd542696d7e175/0b799066c39a673d84133a484c2bf9a6b55eae320e33e0cc7a4ade49, [0.5654, 231, [1, 5, 2]]
 
 
-### Framework
+### Class: Framework
 
 A _Framework_ is a long-running process that:
 * parses command-line options from the user
@@ -223,7 +220,7 @@ A _Framework_ is a long-running process that:
 Resources allocated for each Executor must be sufficient to support a Population shard of *n_pop* / *n_exe* Individuals.
 
 
-### Executor
+### Class: Executor
 
 An _Executor_ is a service running on a [Apache Mesos] slave that:
 * maintains _operational state_ (e.g., system parameters) in memory
@@ -254,7 +251,7 @@ This also forces a pre-defined limit on the number of Individuals explored in th
 a coroutine library that provides concurrency on top of _libevent_.
 
 
-### Observations about Distributed Systems
+## Observations about Distributed Systems
 
 Effectively, a [GA] implements a stochastic process over a [content addressable memory], to optimize a non-convex search space.
 Given use of [HDFS] for distributed storage, then much of the architecture resembles a [distributed hash table] which tolerates data loss.
@@ -272,6 +269,36 @@ Also, the algorithm is tolerant of factors that often hinder distributed systems
 In the latter case when an Executor process is lost, the Framework can simply launch another Executor on the cluster 
 (via [Marathon]) and have it restore its shard of Individuals from its last good checkpoint.
 In general, limited amounts of data loss serve to add stochastic aspects to the search, and may help accelerate evolution.
+
+
+## Acknowledgements
+
+[Bill Worzel](http://www.linkedin.com/pub/bill-worzel/12/9b4/4b3),
+[Niklas Nielsen](https://github.com/nqn),
+[Jason Dusek](https://github.com/solidsnack),
+[Alek Storm](https://github.com/alekstorm),
+[Erich Nachbar](https://github.com/enachb),
+[Tobi Knaup](https://github.com/guenter),
+[Flo Leibert](https://github.com/florianleibert).
+
+
+## Current Status
+
+* 2013-11-23 first successful launch of customized framework/executor on [Elastic Mesos]
+* 2013-11-21 running one master/one slave only (e.g., on a laptop)
+
+
+### TODO
+
+* remote shell script to manage all master/slave installations
+* integrate [Apache Mesos] <code>test_framework.py</code> and <code>test_executor.py</code>
+* articulate all of the [REST] endpoint services
+* support for multiple Executors in the [hash ring]
+* shard checkpoint to [HDFS]
+* shard recovery from [HDFS]
+* saving/recovering Framework state in [Zookeeper]
+* optimize [bloom filter] settings as a function of the *max_pop* and *n_exe* parameters
+* <code>Makefile</code> to build tarball for Executor downloads
 
 
 [Amazon AWS]: http://aws.amazon.com/
