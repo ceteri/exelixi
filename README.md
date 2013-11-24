@@ -83,7 +83,7 @@ To get started quickly on a single node (i.e., your laptop) simply follow two st
 
 First, launch one Executor locally:
 
-    nohup ./src/executor.py 9311 &
+    nohup ./src/exelixi.py -p 9311 &
 
 Then launch a Framework to run the default [GA] as an example:
 
@@ -199,12 +199,12 @@ In that case, the Individual would be represented in tab-separated format (TSV) 
 
 A _Framework_ is a long-running process that:
 * parses command-line options from the user
-* generates a [UUID] for each attempted algorithm run
-* maintains _operational state_ (e.g., system parameters) in [Zookeeper]
-  * *prefix*: unique directory prefix in [HDFS] based on generated [UUID]
   * *n_exe*: number of allocated Executors
   * *exe_url*: download URL for Executor tarball (customized Python classes)
-  * list of Executor endpoints from [Marathon]
+* generates a [UUID] for each attempted algorithm run
+* maintains _operational state_ (e.g., system parameters) in [Zookeeper]
+  * list of Executor endpoints from [Apache Mesos]
+  * *prefix*: unique directory prefix in [HDFS] based on generated [UUID]
   * *current_gen*: current generation count
 * receives _logical state_ (e.g., model parameters) from customized Python classes
 * initializes the pool of Executors
@@ -262,7 +262,7 @@ Also, the algorithm is tolerant of factors that often hinder distributed systems
 * _data loss_ of partial solutions, e.g., a [bloom filter] false positive, or when an Executor fails, etc.
 
 In the latter case when an Executor process is lost, the Framework can simply launch another Executor on the cluster 
-(via [Marathon]) and have it restore its shard of Individuals from its last good checkpoint.
+(via [Apache Mesos]) and have it restore its shard of Individuals from its last good checkpoint.
 In general, limited amounts of data loss serve to add stochastic aspects to the search, and may help accelerate evolution.
 
 
@@ -303,7 +303,6 @@ Heartfelt kudos to
 [GA]: http://en.wikipedia.org/wiki/Genetic_algorithm
 [HDFS]: http://hadoop.apache.org/
 [JSON]: http://www.json.org/
-[Marathon]: https://github.com/mesosphere/marathon
 [Python egg]: https://wiki.python.org/moin/egg
 [REST]: http://www.ics.uci.edu/~taylor/documents/2002-REST-TOIT.pdf
 [SHA-3]: http://en.wikipedia.org/wiki/SHA-3
