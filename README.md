@@ -10,7 +10,8 @@ However, task overhead can become high in proportion to tasks being performed ("
 plus there is a considerable amount of configuration required at scale.
 Server-side operations and coprocessors in [Apache Cassandra](http://cassandra.apache.org/) or [Apache HBase](http://hbase.apache.org/)
 might also provide a good fit for [GA] processing, but both of those also require lots of configuration.
-Moreover, many of the features for these more heavyweight frameworks are not needed.
+Moreover, many of the features for these more heavyweight frameworks are not needed,
+plus it helps to have some lightweight messaging available among the shards -- which these existing frameworks lack.
 
 On the one hand, <b>Exelixi</b> provides the basis for a tutorial for building distributed frameworks in [Apache Mesos].
 On the other hand, it provides a general-purpose [GA] platform that emphasizes _scalability_ and _fault tolerance_,
@@ -79,8 +80,7 @@ See a [GitHub gist](https://gist.github.com/ceteri/7609046) for an example of a 
 
 ### Usage for Standalone Mode
 
-To get started quickly on a single node (i.e., your laptop) simply follow two steps.
-
+To get started quickly on a single node (i.e., your laptop) in *standalone mode* simply follow two steps.
 First, launch one Executor locally:
 
     nohup ./src/exelixi.py -p 9311 &
@@ -91,6 +91,10 @@ Then launch a Framework to run the default [GA] as an example:
     ./src/driver.py localhost:9311 pop/init ./test
     ./src/driver.py localhost:9311 pop/next ./test
     ./src/driver.py localhost:9311 stop ./test
+
+Note that there are trade-offs regarding standalone mode.
+Pros: simple to test the customization of a [GA] quickly, without requiring an [Apache Mesos] cluster.
+Cons: difficult to configure and manage a [GA] in production at scale, since it lacks features for security and fault tolerance.
 
 
 ## Background
