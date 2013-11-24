@@ -18,7 +18,7 @@
 
 
 from argparse import ArgumentParser
-from cluster import get_master_leader
+from cluster import get_master_leader, get_slave_list
 from executor import Executor
 from ga import APP_NAME
 from gevent import monkey
@@ -44,6 +44,10 @@ if __name__=='__main__':
     group4.add_argument("-p", "--port", nargs=1, metavar="PORT",
                         help="port number to use for this service")
 
+    group5 = parser.add_argument_group("Nodes", "enumerate the slave nodes in an Apache Mesos cluster")
+    group5.add_argument("-n", "--nodes", nargs=1, metavar="HOST:PORT",
+                        help="location for one of the masters")
+
     parser.add_argument("-f", "--feature", nargs=1, metavar="PKG.CLASS", default="run.FeatureFactory",
                         help="extension of FeatureFactory class to use for GA parameters and customizations")
 
@@ -55,7 +59,13 @@ if __name__=='__main__':
 
     # interpret arguments based on the different operational modes
 
-    if args.master:
+    if args.nodes:
+        print "%s enumerating the slave nodes in an Apache Mesos cluster" % (APP_NAME),
+        print "with master %s" % (args.nodes[0])
+
+        print get_slave_list(args.nodes[0])
+
+    elif args.master:
         print "%s running as a Framework atop an Apache Mesos cluster" % (APP_NAME),
         print "with master %s and %d executor(s)" % (args.master[0], args.executors)
 
