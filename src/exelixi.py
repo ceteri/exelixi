@@ -17,15 +17,16 @@
 # https://github.com/ceteri/exelixi
 
 
+from argparse import ArgumentParser
+from cluster import get_master_leader
 from executor import Executor
 from ga import APP_NAME
 from gevent import monkey
-import argparse
 
 
 if __name__=='__main__':
-    parser = argparse.ArgumentParser(prog="Exelixi", usage="one of the operational modes shown below...", add_help=True,
-                                     description="Exelixi, a distributed framework for genetic algorithms, based on Apache Mesos")
+    parser = ArgumentParser(prog="Exelixi", usage="one of the operational modes shown below...", add_help=True,
+                            description="Exelixi, a distributed framework for genetic algorithms, based on Apache Mesos")
 
     group1 = parser.add_argument_group("Mesos Framework", "run as a Framework on an Apache Mesos cluster")
     group1.add_argument("-m", "--master", metavar="HOST:PORT", nargs=1,
@@ -47,17 +48,36 @@ if __name__=='__main__':
                         help="extension of FeatureFactory class to use for GA parameters and customizations")
 
     args = parser.parse_args()
-    print args
 
-    # interpret the operational modes
+    print args
+    print
+
+
+    # interpret arguments based on the different operational modes
 
     if args.master:
         print "%s running as a Framework atop an Apache Mesos cluster" % (APP_NAME),
         print "with master %s and %d executor(s)" % (args.master[0], args.executors)
 
+        if args.feature:
+            print "  using %s for the GA parameters and customizations" % (args.feature)
+
+        from sched import MesosScheduler
+        master_uri = get_master_leader(args.master[0])
+        exe_path = "/home/ubuntu/exelixi-master/test_executor.py"
+
+        driver = MesosScheduler.start_framework(master_uri, exe_path)
+        ## NB: schedule tasks HERE for the remote Executor instances
+        MesosScheduler.stop_framework(driver)
+
     elif args.slaves:
         print "%s running as a Framework in standalone mode" % (APP_NAME),
         print "with slave(s) %s" % (args.slaves)
+
+        if args.feature:
+            print "  using %s for the GA parameters and customizations" % (args.feature)
+
+        ## NB: must populate Framework standalone
 
     elif args.port:
         print "%s running as an Executor in standalone mode" % (APP_NAME),
@@ -67,11 +87,18 @@ if __name__=='__main__':
         monkey.patch_all()
 
         # launch service
-        exe = Executor(port=int(args.port[0]))
-        exe.start()
+        try:
+            exe = Executor(port=int(args.port[0]))
+            exe.start()
+        except KeyboardInterrupt:
+            pass
 
     else:
         print "%s running as an Executor atop an Apache Mesos cluster" % (APP_NAME)
 
-    if args.feature:
-        print "  using %s for the GA parameters and customizations" % (args.feature)
+        from sched import MesosExecutor
+
+        try:
+            MesosExecutor.run_executor()
+        except KeyboardInterrupt:
+            pass
