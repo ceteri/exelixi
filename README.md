@@ -28,7 +28,7 @@ running <b>Exelixi</b> either on [Apache Mesos] or in *standalone mode*.
 ### System Dependencies
 
 * [Apache Mesos] 0.14.0 rc4
-* Python version 2.7, with [Anaconda] as the recommended Python platform
+* Python version 2.7, with [Anaconda] as the recommended platform
 * Python [Setuptools](https://pypi.python.org/pypi/setuptools)
 * Python [Protobuf](https://pypi.python.org/pypi/protobuf)
 
@@ -52,9 +52,9 @@ Also, you need to install the <b>Exelixi</b> source.
 
 On the master, download the <code>master</code> branch of the <b>Exelixi</b> code repo on GitHub and install the required libraries:
 
-    wget https://github.com/ceteri/exelixi/archive/master.zip
-    unzip master.zip
-    cd exelixi-master
+    wget https://github.com/ceteri/exelixi/archive/master.zip ; \
+    unzip master.zip ; \
+    cd exelixi-master ; \
     ./bin/local_install.sh
 
 You can test the installation at any point simply by attempting to import the <code>mesos</code> package into Python:
@@ -160,7 +160,7 @@ and reports results; also handles all of the user interaction
 ### Class: FeatureFactory
 
 To implement a [GA] in <b>Exelixi</b>,
-subclass the _FeatureFactory_ class (in <code>src/run.py</code>) to customize the following operations:
+subclass the _FeatureFactory_ class (copy/edit <code>src/run.py</code>) to customize the following operations:
 * handle serializing/deserializing a feature set
 * randomly generate a feature set
 * calculate (or approximate) a fitness function
