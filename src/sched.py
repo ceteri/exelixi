@@ -136,7 +136,7 @@ class MesosScheduler (mesos.Scheduler):
             slave_id, executor_id = self.taskData[update.task_id.value]
 
             self.messagesSent += 1
-            driver.sendFrameworkMessage(executor_id, slave_id, 'data with a \0 byte')
+            driver.sendFrameworkMessage(executor_id, slave_id, str('port: 100')) #data with a \0 byte'
 
 
     def frameworkMessage (self, driver, executorId, slaveId, message):
