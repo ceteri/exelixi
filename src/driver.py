@@ -40,4 +40,4 @@ if __name__=='__main__':
     req.add_header('Content-Type', 'application/json')
 
     f = urlopen(req, data)
-    print f.read()
+    print f.readlines()

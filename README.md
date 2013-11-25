@@ -90,6 +90,7 @@ Then launch a Framework to run the default [GA] as an example:
 
     ./src/driver.py localhost:9311 shard/config ./test
     ./src/driver.py localhost:9311 pop/init ./test
+    ./src/driver.py localhost:9311 pop/hist ./test
     ./src/driver.py localhost:9311 pop/next ./test
     ./src/driver.py localhost:9311 stop ./test
 
