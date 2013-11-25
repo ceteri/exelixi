@@ -21,7 +21,7 @@ from argparse import ArgumentParser
 from cluster import get_master_leader, get_slave_list
 from executor import Executor
 from ga import APP_NAME
-from gevent import monkey
+#from gevent import monkey
 
 
 if __name__=='__main__':
@@ -88,7 +88,7 @@ if __name__=='__main__':
         print "on port %s" % (args.port[0])
 
         # "And now, a public service announcement on behalf of the Greenlet Party..."
-        monkey.patch_all()
+        #monkey.patch_all()
 
         # launch service
         try:
@@ -104,7 +104,7 @@ if __name__=='__main__':
 
         try:
             # "And now, a public service announcement on behalf of the Greenlet Party..."
-            monkey.patch_all()
+            #monkey.patch_all()
 
             MesosExecutor.run_executor()
         except KeyboardInterrupt:
