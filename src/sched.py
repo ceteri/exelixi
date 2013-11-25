@@ -17,7 +17,6 @@
 # https://github.com/ceteri/exelixi
 
 
-from gevent import monkey
 import executor
 import os
 import sys
@@ -234,9 +233,6 @@ class MesosExecutor (mesos.Executor):
 
             ## NB: this is where one would perform the requested task
             print "perform task %s" % task.task_id.value
-
-            # "And now, a public service announcement on behalf of the Greenlet Party..."
-            monkey.patch_all()
 
             # launch service
             exe = executor.Executor(port=9311)

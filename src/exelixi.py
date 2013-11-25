@@ -103,6 +103,9 @@ if __name__=='__main__':
         from sched import MesosExecutor
 
         try:
+            # "And now, a public service announcement on behalf of the Greenlet Party..."
+            monkey.patch_all()
+
             MesosExecutor.run_executor()
         except KeyboardInterrupt:
             pass

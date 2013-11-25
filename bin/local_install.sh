@@ -6,6 +6,7 @@ echo "installing Python/Mesos..."
 sudo aptitude -y install python-setuptools
 sudo aptitude -y install python-protobuf
 sudo aptitude -y install python-gevent
+rm -rf $EGG
 wget http://downloads.mesosphere.io/master/ubuntu/12.10/$EGG
 sudo easy_install $EGG
 
