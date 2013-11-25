@@ -52,17 +52,11 @@ if __name__=='__main__':
                         help="extension of FeatureFactory class to use for GA parameters and customizations")
 
     args = parser.parse_args()
-
-    print args
-    print
-
+    #print args
 
     # interpret arguments based on the different operational modes
 
     if args.nodes:
-        print "%s enumerating the slave nodes in an Apache Mesos cluster" % (APP_NAME),
-        print "with master %s" % (args.nodes[0])
-
         print get_slave_list(args.nodes[0])
 
     elif args.master:
