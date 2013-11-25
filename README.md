@@ -31,6 +31,7 @@ running <b>Exelixi</b> either on [Apache Mesos] or in *standalone mode*.
 * Python version 2.7, with [Anaconda] as the recommended platform
 * Python [Setuptools](https://pypi.python.org/pypi/setuptools)
 * Python [Protobuf](https://pypi.python.org/pypi/protobuf)
+* Python [Gevent](https://pypi.python.org/pypi/gevent)
 
 
 ### Usage for [Apache Mesos] launch
@@ -64,12 +65,12 @@ You can test the installation at any point simply by attempting to import the <c
 If there is no <code>ImportError</code> exception thrown, then your installation should be complete.
 Next, run the installation commands on each of the slaves:
 
-    python ./src/cluster.py localhost:5050 | ./bin/install.sh
+    python ./src/exelixi.py -n localhost:5050 | ./bin/install.sh
 
 Great, ready to roll!
 Now launch the Framework, which in turn launches the Executors remotely on slave nodes:
 
-    python ./test_framework.py localhost:5050
+    python ./src/exelixi.py -m localhost:5050
 
 If everything runs successfully, the log should conclude with a final line:
 
@@ -291,6 +292,7 @@ Heartfelt kudos to
 ### TODO
 
 * integrate [Apache Mesos] <code>test_framework.py</code> and <code>test_executor.py</code>
+* automate [Anaconda] installations on the cluster
 * articulate all of the [REST] endpoint services
 * support for multiple Executors in the [hash ring]
 * shard checkpoint to [HDFS]

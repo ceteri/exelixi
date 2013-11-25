@@ -74,7 +74,7 @@ if __name__=='__main__':
 
         from sched import MesosScheduler
         master_uri = get_master_leader(args.master[0])
-        exe_path = "/home/ubuntu/exelixi-master/test_executor.py"
+        exe_path = "/home/ubuntu/exelixi-master/src/exelixi.py"
 
         driver = MesosScheduler.start_framework(master_uri, exe_path)
         ## NB: schedule tasks HERE for the remote Executor instances
