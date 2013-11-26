@@ -240,7 +240,7 @@ class MesosExecutor (mesos.Executor):
 
             # launch service
             print "perform task %s" % task.task_id.value
-            subprocess.Popen(["./exelixi.py", "-p", "9311"])
+            subprocess.Popen(["/home/ubuntu/exelixi-master/src/exelixi.py", "-p", "9311"])
 
             update = mesos_pb2.TaskStatus()
             update.task_id.value = task.task_id.value
