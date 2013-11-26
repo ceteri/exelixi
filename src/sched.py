@@ -17,9 +17,9 @@
 # https://github.com/ceteri/exelixi
 
 
-from gevent import monkey
+from multiprocessing import Process
 from service import Worker
-#from threading import Thread
+from threading import Thread
 import os
 import sys
 
@@ -226,33 +226,34 @@ class MesosExecutor (mesos.Executor):
         this executor until this callback has returned.
         """
 
-        print "requested task %s" % task.task_id.value
+        # create a thread to run the task: tasks should always be run
+        # in new threads or processes, rather than inside launchTask
+        def run_task():
+            print "requested task %s" % task.task_id.value
 
-        update = mesos_pb2.TaskStatus()
-        update.task_id.value = task.task_id.value
-        update.state = mesos_pb2.TASK_RUNNING
-        update.data = str('running: data with a \0 byte')
-        driver.sendStatusUpdate(update)
-        print "sent status update 1..."
+            update = mesos_pb2.TaskStatus()
+            update.task_id.value = task.task_id.value
+            update.state = mesos_pb2.TASK_RUNNING
+            update.data = str('running: data with a \0 byte')
+            driver.sendStatusUpdate(update)
+            print "sent status update 1..."
 
-        ## NB: this is where one would perform the requested task
-        print "perform task %s" % task.task_id.value
+            # launch service
+            print "perform task %s" % task.task_id.value
 
-        # "And now, a public service announcement on behalf of the Greenlet Party..."
-        monkey.patch_all()
+            p = Process(target=Worker.WorkerProc, args=(9311,))
+            p.start()
 
-        try:
-            svc = Worker(port=9311)
-            svc.start()
-        except KeyboardInterrupt:
-            pass
+            update = mesos_pb2.TaskStatus()
+            update.task_id.value = task.task_id.value
+            update.state = mesos_pb2.TASK_FINISHED
+            update.data = str('complete: data with a \0 byte')
+            driver.sendStatusUpdate(update)
+            print "sent status update 2..."
 
-        update = mesos_pb2.TaskStatus()
-        update.task_id.value = task.task_id.value
-        update.state = mesos_pb2.TASK_FINISHED
-        update.data = str('complete: data with a \0 byte')
-        driver.sendStatusUpdate(update)
-        print "sent status update 2..."
+        # now run the requested task
+        thread = Thread(target=run_task)
+        thread.start()
 
 
     def frameworkMessage (self, driver, message):

@@ -19,7 +19,6 @@
 
 from argparse import ArgumentParser
 from ga import APP_NAME
-from gevent import monkey
 from json import loads
 from service import Worker
 from urllib2 import urlopen
@@ -109,9 +108,6 @@ if __name__=='__main__':
     elif args.port:
         print "%s running as an Executor in standalone mode" % (APP_NAME),
         print "on port %s" % (args.port[0])
-
-        # "And now, a public service announcement on behalf of the Greenlet Party..."
-        monkey.patch_all()
 
         # launch service
         try:
