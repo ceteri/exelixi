@@ -17,10 +17,10 @@
 # https://github.com/ceteri/exelixi
 
 
-from multiprocessing import Process
 from service import Worker
 from threading import Thread
 import os
+import subprocess
 import sys
 
 import mesos
@@ -240,9 +240,7 @@ class MesosExecutor (mesos.Executor):
 
             # launch service
             print "perform task %s" % task.task_id.value
-
-            p = Process(target=Worker.WorkerProc, args=(9311,))
-            p.start()
+            subprocess.Popen(["./exelixi.py", "-p", "9311"])
 
             update = mesos_pb2.TaskStatus()
             update.task_id.value = task.task_id.value
