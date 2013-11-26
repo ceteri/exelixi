@@ -249,7 +249,7 @@ class MesosExecutor (mesos.Executor):
                     # "And now, a public service announcement on behalf of the Greenlet Party..."
                     monkey.patch_all()
 
-                    svc = service.Worker(port=9311)
+                    svc = Worker(port=9311)
                     svc.start()
                 except KeyboardInterrupt:
                     pass
