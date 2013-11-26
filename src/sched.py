@@ -18,9 +18,9 @@
 
 
 from gevent import monkey
-from os import fork, getenv, path
 from service import Worker
 from threading import Thread
+import os
 import sys
 
 import mesos
@@ -97,8 +97,8 @@ class MesosScheduler (mesos.Scheduler):
                 task.name = "task %d" % tid
                 task.executor.MergeFrom(self.executor)
 
-                self._executors.add(offer.hostname)
-                print self._executors.add(offer.hostname)
+                self._executors.append(offer.hostname)
+                print self._executors
 
                 cpus = task.resources.add()
                 cpus.name = "cpus"
