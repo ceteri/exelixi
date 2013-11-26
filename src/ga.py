@@ -121,12 +121,12 @@ class Population (object):
         return d
 
 
-    def get_fitness_cutoff (self):
+    def get_fitness_cutoff (self, hist):
         """determine fitness cutoff (bin lower bounds) for the parent selection filter"""
         sum = 0
         break_next = False
 
-        for bin, count in self.get_part_hist():
+        for bin, count in hist:
             if break_next:
                 break
 
@@ -180,9 +180,9 @@ class Population (object):
             self.reify(indiv)
 
 
-    def test_termination (self, current_gen):
+    def test_termination (self, current_gen, hist):
         """evaluate the terminating condition for this generation and report progress"""
-        return self.feature_factory.test_termination(current_gen, self._term_limit, self.get_part_hist())
+        return self.feature_factory.test_termination(current_gen, self._term_limit, hist)
 
 
     def report_summary (self):
@@ -263,11 +263,12 @@ if __name__=='__main__':
 
     # iterate N times or until a "good enough" solution is found
     for current_gen in xrange(ff.n_gen):
-        fitness_cutoff = pop.get_fitness_cutoff()
+        hist = pop.get_part_hist()
 
-        if pop.test_termination(current_gen):
+        if pop.test_termination(current_gen, hist):
             break
 
+        fitness_cutoff = pop.get_fitness_cutoff(hist)
         pop.next_generation(current_gen, fitness_cutoff)
 
     # report summary

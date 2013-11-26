@@ -17,17 +17,18 @@
 # https://github.com/ceteri/exelixi
 
 
-from ga import APP_NAME, Individual, Population
+from ga import instantiate_class, APP_NAME, Individual, Population
 from gevent import monkey, queue, wsgi, Greenlet
 from hashring import HashRing
 from json import dumps, loads
+from uuid import uuid1
 import sys
 
 
 ######################################################################
 ## class definitions
 
-class Executor (object):
+class Worker (object):
     # http://www.gevent.org/gevent.wsgi.html
     # http://toastdriven.com/blog/2011/jul/31/gevent-long-polling-you/
     # http://blog.pythonisito.com/2012/07/gevent-and-greenlets.html
@@ -279,16 +280,48 @@ class Executor (object):
         return body
 
 
+class Framework (object):
+    def __init__ (self, ff_name, prefix="/tmp/exelixi/"):
+        # system parameters, for representing operational state
+        self.feature_factory = instantiate_class(ff_name)
+        self.uuid = uuid1().hex
+        self.prefix = prefix + self.uuid
+        self.hash_ring = None
+        self.n_gen = self.feature_factory.n_gen
+        self.current_gen = 0
+
+
 if __name__=='__main__':
-    ## Executor operations:
+    ## Framework operations:
 
     # parse command line options
-    port = int(sys.argv[1])
-    print "%s: executor service running on %d..." % (APP_NAME, port)
+    if len(sys.argv) < 2:
+        print "usage:\n  %s <feature factory>" % (sys.argv[0])
+        sys.exit(1)
 
-    # "And now, a public service announcement on behalf of the Greenlet Party..."
-    monkey.patch_all()
+    ff_name = sys.argv[1]
+    ff = instantiate_class(ff_name)
 
-    # launch service
-    exe = Executor(port=port)
-    exe.start()
+    fra = Framework(ff_name)
+    print "%s: framework launching at %s based on %s..." % (APP_NAME, fra.prefix, ff_name)
+
+    ## NB: standalone mode
+    # initialize a Population of unique Individuals at generation 0
+    pop = Population(Individual(), ff_name, prefix=fra.prefix, hash_ring=fra.hash_ring)
+    pop.populate(fra.current_gen)
+
+    # iterate N times or until a "good enough" solution is found
+
+    while fra.current_gen < fra.n_gen:
+        hist = pop.get_part_hist()
+
+        if pop.test_termination(fra.current_gen, hist):
+            break
+
+        fitness_cutoff = pop.get_fitness_cutoff(hist)
+        pop.next_generation(fra.current_gen, fitness_cutoff)
+        fra.current_gen += 1
+        ## NB: save state to Zookeeper
+
+    # report summary
+    pop.report_summary()

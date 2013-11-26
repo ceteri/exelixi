@@ -17,11 +17,11 @@
 # https://github.com/ceteri/exelixi
 
 
-import executor
-import os
+from gevent import monkey
+from os import fork, getenv, path
+from service import Worker
+from threading import Thread
 import sys
-import threading
-import time
 
 import mesos
 import mesos_pb2
@@ -45,6 +45,7 @@ class MesosScheduler (mesos.Scheduler):
         self.tasksFinished = 0
         self.messagesSent = 0
         self.messagesReceived = 0
+        self._executors = []
 
 
     def registered (self, driver, frameworkId, masterInfo):
@@ -87,13 +88,17 @@ class MesosScheduler (mesos.Scheduler):
                 self.tasksLaunched += 1
 
                 print "accepting offer on executor %s to start task %d" % (offer.hostname, tid)
-                ## NB: schedule tasks here!
+                ## NB: schedule tasks here
+                ## (what does that mean, if the service parameters are specified elsewhere?)
 
                 task = mesos_pb2.TaskInfo()
                 task.task_id.value = str(tid)
                 task.slave_id.value = offer.slave_id.value
                 task.name = "task %d" % tid
                 task.executor.MergeFrom(self.executor)
+
+                self._executors.add(offer.hostname)
+                print self._executors.add(offer.hostname)
 
                 cpus = task.resources.add()
                 cpus.name = "cpus"
@@ -136,7 +141,9 @@ class MesosScheduler (mesos.Scheduler):
             slave_id, executor_id = self.taskData[update.task_id.value]
 
             self.messagesSent += 1
-            driver.sendFrameworkMessage(executor_id, slave_id, str('port: 100')) #data with a \0 byte'
+            ## NB: integrate service launch here
+            message = str('{ "port": 9311 }')
+            driver.sendFrameworkMessage(executor_id, slave_id, message)
 
 
     def frameworkMessage (self, driver, executorId, slaveId, message):
@@ -227,7 +234,7 @@ class MesosExecutor (mesos.Executor):
             update = mesos_pb2.TaskStatus()
             update.task_id.value = task.task_id.value
             update.state = mesos_pb2.TASK_RUNNING
-            update.data = 'running: data with a \0 byte'
+            update.data = str('running: data with a \0 byte')
             driver.sendStatusUpdate(update)
             print "sent status update 1..."
 
@@ -235,18 +242,28 @@ class MesosExecutor (mesos.Executor):
             print "perform task %s" % task.task_id.value
 
             # launch service
-            #exe = executor.Executor(port=9311)
-            #exe.start()
+            pid = os.fork()
+ 
+            if pid > 0:
+                try:
+                    # "And now, a public service announcement on behalf of the Greenlet Party..."
+                    monkey.patch_all()
 
-            update = mesos_pb2.TaskStatus()
-            update.task_id.value = task.task_id.value
-            update.state = mesos_pb2.TASK_FINISHED
-            update.data = 'complete: data with a \0 byte'
-            driver.sendStatusUpdate(update)
-            print "sent status update 2..."
+                    svc = service.Worker(port=9311)
+                    svc.start()
+                except KeyboardInterrupt:
+                    pass
+
+            else:
+                update = mesos_pb2.TaskStatus()
+                update.task_id.value = task.task_id.value
+                update.state = mesos_pb2.TASK_FINISHED
+                update.data = str('complete: data with a \0 byte')
+                driver.sendStatusUpdate(update)
+                print "sent status update 2..."
 
         # now run the requested task
-        thread = threading.Thread(target=run_task)
+        thread = Thread(target=run_task)
         thread.start()
 
 

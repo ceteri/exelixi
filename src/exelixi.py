@@ -18,10 +18,33 @@
 
 
 from argparse import ArgumentParser
-from cluster import get_master_leader, get_slave_list
-from executor import Executor
 from ga import APP_NAME
-#from gevent import monkey
+from gevent import monkey
+from json import loads
+from service import Worker
+from urllib2 import urlopen
+
+
+######################################################################
+## utilities
+
+def get_master_state (master_uri):
+    """get current state, represented as JSON, from the Mesos master"""
+    response = urlopen("http://" + master_uri + "/master/state.json")
+    return loads(response.read())
+
+
+def get_master_leader (master_uri):
+    """get the host:port for the Mesos master leader"""
+    state = get_master_state(master_uri)
+    return state["leader"].split("@")[1]
+
+
+def get_slave_list (master_uri):
+    """get a space-separated list of slave IP addr"""
+    state = get_master_state(get_master_leader(master_uri))
+    slaves = state["slaves"]
+    return " ".join([ s["pid"].split("@")[1].split(":")[0] for s in slaves ])
 
 
 if __name__=='__main__':
@@ -88,12 +111,12 @@ if __name__=='__main__':
         print "on port %s" % (args.port[0])
 
         # "And now, a public service announcement on behalf of the Greenlet Party..."
-        #monkey.patch_all()
+        monkey.patch_all()
 
         # launch service
         try:
-            exe = Executor(port=int(args.port[0]))
-            exe.start()
+            svc = Worker(port=int(args.port[0]))
+            svc.start()
         except KeyboardInterrupt:
             pass
 
@@ -103,9 +126,6 @@ if __name__=='__main__':
         from sched import MesosExecutor
 
         try:
-            # "And now, a public service announcement on behalf of the Greenlet Party..."
-            #monkey.patch_all()
-
             MesosExecutor.run_executor()
         except KeyboardInterrupt:
             pass
