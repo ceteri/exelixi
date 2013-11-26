@@ -288,12 +288,11 @@ Heartfelt kudos to
 
 * 2013-11-23 first successful launch of customized framework/executor on [Elastic Mesos]
 * 2013-11-21 running one master/one slave only (e.g., on a laptop)
+* 2013-11-26 integrate the required [Apache Mesos] methods to launch/manage a remote service
 
 
 ### TODO
 
-* integrate [Apache Mesos] <code>test_framework.py</code> and <code>test_executor.py</code>
-* automate [Anaconda] installations on the cluster
 * articulate all of the [REST] endpoint services
 * support for multiple Executors in the [hash ring]
 * shard checkpoint to [HDFS]
@@ -301,6 +300,7 @@ Heartfelt kudos to
 * saving/recovering Framework state in [Zookeeper]
 * optimize [bloom filter] settings as a function of the *max_pop* and *n_exe* parameters
 * <code>Makefile</code> to build tarball for Executor downloads
+* automate [Anaconda] installations on the cluster
 
 
 [Amazon AWS]: http://aws.amazon.com/

@@ -45,7 +45,7 @@ class MesosSlave (object):
 
     def report (self):
         ## NB: debugging the structure of received protobuffers / slave state
-        print "host %s slave %s task %s ip %s:%s" % (self.host, str(self.slave_id), str(self.task_id), str(self.ip_addr), str(self.port))
+        return "host %s slave %s task %s ip %s:%s" % (self.host, str(self.slave_id), str(self.task_id), self.ip_addr, str(self.port))
 
 
 class MesosScheduler (mesos.Scheduler):
@@ -153,6 +153,9 @@ class MesosScheduler (mesos.Scheduler):
         print "task %s is in state %d" % (update.task_id.value, update.state)
         print "actual:", repr(str(update.data))
 
+        ## NB: should Executor select this based on available ports?
+        port = "9311"
+
         if update.state == mesos_pb2.TASK_FINISHED:
             self.tasksFinished += 1
 
@@ -160,6 +163,7 @@ class MesosScheduler (mesos.Scheduler):
             for _, exe in self._executors.items():
                 if exe.task_id == update.task_id.value:
                     exe.ip_addr = str(update.data)
+                    exe.port = port
 
             if self.tasksFinished == self._n_exe:
                 print "all executors launched, waiting for final framework message"
@@ -168,7 +172,7 @@ class MesosScheduler (mesos.Scheduler):
             self.messagesSent += 1
 
             ## NB: integrate service launch here
-            message = str(dumps([ self._exe_path, "-p", "9311" ]))
+            message = str(dumps([ self._exe_path, "-p", port ]))
             driver.sendFrameworkMessage(executor_id, slave_id, message)
 
 
@@ -188,7 +192,10 @@ class MesosScheduler (mesos.Scheduler):
                 print "sent", self.messagesSent, "received", self.messagesReceived
                 sys.exit(1)
 
-            # NB: being Framework orchestration via REST services
+            ## NB: begin Framework orchestration via REST services
+            for _, exe in self._executors.items():
+                print exe.report()
+
             print "all executors launched and all messages received; exiting"
             driver.stop()
 
