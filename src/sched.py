@@ -171,12 +171,12 @@ class MesosScheduler (mesos.Scheduler):
             exe.ip_addr = str(update.data)
             exe.port = Worker.DEFAULT_PORT
 
+            if self.tasksFinished == self._n_exe:
+                print "all executors launched, waiting to collect framework messages"
+
             ## NB: integrate service launch here
             message = str(dumps([ self._exe_path, "-p", exe.port ]))
             driver.sendFrameworkMessage(executor_id, slave_id, message)
-
-            if self.tasksFinished == self._n_exe:
-                print "all executors launched, waiting to collect framework messages"
 
 
     def frameworkMessage (self, driver, executorId, slaveId, message):
@@ -200,7 +200,7 @@ class MesosScheduler (mesos.Scheduler):
 
             print "all executors launched and all messages received; exiting"
             ## NB: begin Framework orchestration via REST services
-            #driver.stop()
+            driver.stop()
 
 
     def lookupExecutor (self, executor_id):
@@ -251,7 +251,7 @@ class MesosScheduler (mesos.Scheduler):
         else:
             driver = mesos.MesosSchedulerDriver(sched, framework, master_uri)
 
-        exe_list = [ "%s:%s" % (exe.ip_addr, str(exe.port)) for exe in sched._executors.values() ]
+        exe_list = [ "%s:%s" % (exe.ip_addr, exe.port) for exe in sched._executors.values() ]
         return exe_list, driver
 
 

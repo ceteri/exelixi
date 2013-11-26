@@ -33,12 +33,12 @@ class Worker (object):
     # http://toastdriven.com/blog/2011/jul/31/gevent-long-polling-you/
     # http://blog.pythonisito.com/2012/07/gevent-and-greenlets.html
 
-    DEFAULT_PORT = 9311
+    DEFAULT_PORT = "9311"
 
 
     def __init__ (self, port=DEFAULT_PORT):
         monkey.patch_all()
-        self.server = wsgi.WSGIServer(('', port), self._response_handler)
+        self.server = wsgi.WSGIServer(('', int(port)), self._response_handler)
         self.is_config = False
         self.prefix = None
         self.shard_id = None

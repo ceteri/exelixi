@@ -95,10 +95,10 @@ if __name__=='__main__':
         exe_path = "/home/ubuntu/exelixi-master/src/exelixi.py"
 
         exe_list, driver = MesosScheduler.start_framework(master_uri, exe_path, args.executors)
-        print exe_list
+        print "executors", exe_list
         ## NB: TODO must populate Framework atop Mesos (using 'exe_list')
-        print "wait!"
-        time.sleep(200)
+        #print "wait!"
+        #time.sleep(200)
         MesosScheduler.stop_framework(driver)
 
     elif args.slaves:
