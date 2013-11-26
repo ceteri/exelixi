@@ -33,7 +33,7 @@ import mesos_pb2
 class MesosScheduler (mesos.Scheduler):
     # https://github.com/apache/mesos/blob/master/src/python/src/mesos.py
 
-    TOTAL_TASKS = 5
+    TOTAL_TASKS = 3
     TASK_CPUS = 1
     TASK_MEM = 32
 
@@ -83,22 +83,19 @@ class MesosScheduler (mesos.Scheduler):
             tasks = []
             print "got resource offer %s" % offer.id.value
 
-            if self.tasksLaunched < MesosScheduler.TOTAL_TASKS:
+            if self.tasksLaunched < MesosScheduler.TOTAL_TASKS and offer.hostname not in self._executors:
                 tid = self.tasksLaunched
                 self.tasksLaunched += 1
 
+                self._executors.append(offer.hostname)
                 print "accepting offer on executor %s to start task %d" % (offer.hostname, tid)
-                ## NB: schedule tasks here
-                ## (what does that mean, if the service parameters are specified elsewhere?)
+                print self._executors
 
                 task = mesos_pb2.TaskInfo()
                 task.task_id.value = str(tid)
                 task.slave_id.value = offer.slave_id.value
                 task.name = "task %d" % tid
                 task.executor.MergeFrom(self.executor)
-
-                self._executors.append(offer.hostname)
-                print self._executors
 
                 cpus = task.resources.add()
                 cpus.name = "cpus"
@@ -238,9 +235,7 @@ class MesosExecutor (mesos.Executor):
             driver.sendStatusUpdate(update)
             print "sent status update 1..."
 
-            # launch service
-            print "perform task %s" % task.task_id.value
-            subprocess.Popen(["/home/ubuntu/exelixi-master/src/exelixi.py", "-p", "9311"])
+            # NB: rip out this crap
 
             update = mesos_pb2.TaskStatus()
             update.task_id.value = task.task_id.value
@@ -261,8 +256,12 @@ class MesosExecutor (mesos.Executor):
         framework message to be retransmitted in any reliable fashion.
         """
 
+        # launch service
+        print "received message %s" % message
+        subprocess.Popen(["/home/ubuntu/exelixi-master/src/exelixi.py", "-p", "9311"])
+
         # send the message back to the scheduler
-        driver.sendFrameworkMessage(message)
+        driver.sendFrameworkMessage(str("bokay"))
 
 
     @staticmethod

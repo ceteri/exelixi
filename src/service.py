@@ -33,12 +33,6 @@ class Worker (object):
     # http://toastdriven.com/blog/2011/jul/31/gevent-long-polling-you/
     # http://blog.pythonisito.com/2012/07/gevent-and-greenlets.html
 
-    @staticmethod
-    def WorkerProc (port=9311):
-        svc = Worker(port)
-        svc.start()
-
-
     def __init__ (self, port=9311):
         monkey.patch_all()
         self.server = wsgi.WSGIServer(('', port), self._response_handler)
