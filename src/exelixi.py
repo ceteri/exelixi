@@ -22,6 +22,7 @@ from ga import APP_NAME
 from json import loads
 from service import Worker
 from urllib2 import urlopen
+import time
 
 
 ######################################################################
@@ -90,10 +91,14 @@ if __name__=='__main__':
 
         from sched import MesosScheduler
         master_uri = get_master_leader(args.master[0])
+        ## NB: TODO make path relative
         exe_path = "/home/ubuntu/exelixi-master/src/exelixi.py"
 
-        driver = MesosScheduler.start_framework(master_uri, exe_path, args.executors)
-        ## NB: schedule tasks HERE for the remote Executor instances
+        exe_list, driver = MesosScheduler.start_framework(master_uri, exe_path, args.executors)
+        print exe_list
+        ## NB: TODO must populate Framework atop Mesos (using 'exe_list')
+        print "wait!"
+        time.sleep(200)
         MesosScheduler.stop_framework(driver)
 
     elif args.slaves:
@@ -103,7 +108,7 @@ if __name__=='__main__':
         if args.feature:
             print "  using %s for the GA parameters and customizations" % (args.feature)
 
-        ## NB: must populate Framework standalone
+        ## NB: TODO must populate Framework standalone
 
     elif args.port:
         print "%s running an Executor service on port %s" % (APP_NAME, args.port[0])

@@ -20,6 +20,7 @@
 from json import dumps, loads
 from service import Worker
 from threading import Thread
+from uuid import uuid1
 import os
 import socket
 import subprocess
@@ -39,18 +40,20 @@ class MesosSlave (object):
         self.host = offer.hostname
         self.slave_id = offer.slave_id.value
         self.task_id = task.task_id.value
+        self.executor_id = task.executor.executor_id
         self.ip_addr = None
         self.port = None
 
 
     def report (self):
         ## NB: debugging the structure of received protobuffers / slave state
-        return "host %s slave %s task %s ip %s:%s" % (self.host, str(self.slave_id), str(self.task_id), self.ip_addr, str(self.port))
+        return "host %s slave %s task %s exe %s ip %s:%s" % (self.host, str(self.slave_id), str(self.task_id), str(self.executor_id), self.ip_addr, str(self.port))
 
 
 class MesosScheduler (mesos.Scheduler):
     # https://github.com/apache/mesos/blob/master/src/python/src/mesos.py
 
+    ## NB: these resource allocations suffice for now, but could be adjusted/dynamic
     TASK_CPUS = 1
     TASK_MEM = 32
 
@@ -104,6 +107,9 @@ class MesosScheduler (mesos.Scheduler):
             tasks = []
             print "got resource offer %s" % offer.id.value
 
+            ## NB: currently we force 'offer.hostname' to be unique per Executor...
+            ## could be changed, but we'd need to juggle port numbers
+
             if self.tasksLaunched < self._n_exe and offer.hostname not in self._executors:
                 tid = self.tasksLaunched
                 self.tasksLaunched += 1
@@ -126,14 +132,15 @@ class MesosScheduler (mesos.Scheduler):
                 mem.scalar.value = MesosScheduler.TASK_MEM
 
                 tasks.append(task)
-                self.taskData[task.task_id.value] = (offer.slave_id, task.executor.executor_id)                  
+                self.taskData[task.task_id.value] = (offer.slave_id, task.executor.executor_id)
 
                 ## NB: record/report slave state
                 self._executors[offer.hostname] = MesosSlave(offer, task)
 
-                for _, exe in self._executors.items():
+                for exe in self._executors.values():
                     print exe.report()
 
+            # finally, have the driver launch the task
             driver.launchTasks(offer.id, tasks)
 
 
@@ -153,27 +160,23 @@ class MesosScheduler (mesos.Scheduler):
         print "task %s is in state %d" % (update.task_id.value, update.state)
         print "actual:", repr(str(update.data))
 
-        ## NB: should Executor select this based on available ports?
-        port = "9311"
-
         if update.state == mesos_pb2.TASK_FINISHED:
             self.tasksFinished += 1
-
-            ## NB: update the relevant MesosSlave with discovery info
-            for _, exe in self._executors.items():
-                if exe.task_id == update.task_id.value:
-                    exe.ip_addr = str(update.data)
-                    exe.port = port
-
-            if self.tasksFinished == self._n_exe:
-                print "all executors launched, waiting for final framework message"
 
             slave_id, executor_id = self.taskData[update.task_id.value]
             self.messagesSent += 1
 
+            ## NB: update the MesosSlave with discovery info
+            exe = self.lookupExecutor(executor_id)
+            exe.ip_addr = str(update.data)
+            exe.port = Worker.DEFAULT_PORT
+
             ## NB: integrate service launch here
-            message = str(dumps([ self._exe_path, "-p", port ]))
+            message = str(dumps([ self._exe_path, "-p", exe.port ]))
             driver.sendFrameworkMessage(executor_id, slave_id, message)
+
+            if self.tasksFinished == self._n_exe:
+                print "all executors launched, waiting to collect framework messages"
 
 
     def frameworkMessage (self, driver, executorId, slaveId, message):
@@ -192,22 +195,29 @@ class MesosScheduler (mesos.Scheduler):
                 print "sent", self.messagesSent, "received", self.messagesReceived
                 sys.exit(1)
 
-            ## NB: begin Framework orchestration via REST services
-            for _, exe in self._executors.items():
+            for exe in self._executors.values():
                 print exe.report()
 
             print "all executors launched and all messages received; exiting"
-            driver.stop()
+            ## NB: begin Framework orchestration via REST services
+            #driver.stop()
+
+
+    def lookupExecutor (self, executor_id):
+        """lookup the Executor based on a executor_id"""
+        for exe in self._executors.values():
+            if exe.executor_id == executor_id:
+                return exe
 
 
     @staticmethod
     def start_framework (master_uri, exe_path, n_exe):
         # initialize an executor
         executor = mesos_pb2.ExecutorInfo()
-        executor.executor_id.value = "default"
+        executor.executor_id.value = uuid1().hex
         executor.command.value = os.path.abspath(exe_path)
         executor.name = "Exelixi Executor"
-        executor.source = "python_test"
+        executor.source = "GitHub"
 
         # initialize the framework
         framework = mesos_pb2.FrameworkInfo()
@@ -241,7 +251,8 @@ class MesosScheduler (mesos.Scheduler):
         else:
             driver = mesos.MesosSchedulerDriver(sched, framework, master_uri)
 
-        return driver
+        exe_list = [ "%s:%s" % (exe.ip_addr, str(exe.port) for exe in self._executors.values() ]
+        return exe_list, driver
 
 
     @staticmethod
