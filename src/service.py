@@ -36,7 +36,7 @@ class Worker (object):
     DEFAULT_PORT = 9311
 
 
-    def __init__ (self, port=Worker.DEFAULT_PORT):
+    def __init__ (self, port=DEFAULT_PORT):
         monkey.patch_all()
         self.server = wsgi.WSGIServer(('', port), self._response_handler)
         self.is_config = False
