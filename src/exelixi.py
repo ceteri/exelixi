@@ -82,7 +82,7 @@ if __name__=='__main__':
         print get_slave_list(args.nodes[0])
 
     elif args.master:
-        print "%s running as a Framework atop an Apache Mesos cluster" % (APP_NAME),
+        print "%s running a Framework atop an Apache Mesos cluster" % (APP_NAME),
         print "with master %s and %d executor(s)" % (args.master[0], args.executors)
 
         if args.feature:
@@ -92,12 +92,12 @@ if __name__=='__main__':
         master_uri = get_master_leader(args.master[0])
         exe_path = "/home/ubuntu/exelixi-master/src/exelixi.py"
 
-        driver = MesosScheduler.start_framework(master_uri, exe_path)
+        driver = MesosScheduler.start_framework(master_uri, exe_path, args.executors)
         ## NB: schedule tasks HERE for the remote Executor instances
         MesosScheduler.stop_framework(driver)
 
     elif args.slaves:
-        print "%s running as a Framework in standalone mode" % (APP_NAME),
+        print "%s running a Framework in standalone mode" % (APP_NAME),
         print "with slave(s) %s" % (args.slaves)
 
         if args.feature:
@@ -106,8 +106,7 @@ if __name__=='__main__':
         ## NB: must populate Framework standalone
 
     elif args.port:
-        print "%s running as an Executor in standalone mode" % (APP_NAME),
-        print "on port %s" % (args.port[0])
+        print "%s running an Executor service on port %s" % (APP_NAME, args.port[0])
 
         # launch service
         try:
@@ -117,7 +116,7 @@ if __name__=='__main__':
             pass
 
     else:
-        print "%s running as an Executor atop an Apache Mesos cluster" % (APP_NAME)
+        print "%s running an Executor atop an Apache Mesos cluster" % (APP_NAME)
 
         from sched import MesosExecutor
 

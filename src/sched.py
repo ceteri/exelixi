@@ -17,6 +17,7 @@
 # https://github.com/ceteri/exelixi
 
 
+from json import dumps, loads
 from service import Worker
 from threading import Thread
 import os
@@ -30,10 +31,21 @@ import mesos_pb2
 ######################################################################
 ## class definitions
 
+
+class MesosSlave (object):
+    def __init__ (self, offer, task):
+        ## NB: debugging the structure of received protobuffers
+        print "OFFER", dumps(offer)
+        print "TASK", dumps(task)
+
+        self.hostname = offer.hostname
+        self.slave_id = offer.slave_id.value
+        self.task_id = task.task_id.value
+
+
 class MesosScheduler (mesos.Scheduler):
     # https://github.com/apache/mesos/blob/master/src/python/src/mesos.py
 
-    TOTAL_TASKS = 3
     TASK_CPUS = 1
     TASK_MEM = 32
 
@@ -45,7 +57,11 @@ class MesosScheduler (mesos.Scheduler):
         self.tasksFinished = 0
         self.messagesSent = 0
         self.messagesReceived = 0
-        self._executors = []
+
+        ## NB: customized for Exelixi
+        self._executors = {}
+        self._exe_path = exe_path
+        self._n_exe = n_exe
 
 
     def registered (self, driver, frameworkId, masterInfo):
@@ -83,13 +99,10 @@ class MesosScheduler (mesos.Scheduler):
             tasks = []
             print "got resource offer %s" % offer.id.value
 
-            if self.tasksLaunched < MesosScheduler.TOTAL_TASKS and offer.hostname not in self._executors:
+            if self.tasksLaunched < self._n_exe and offer.hostname not in self._executors:
                 tid = self.tasksLaunched
                 self.tasksLaunched += 1
-
-                self._executors.append(offer.hostname)
                 print "accepting offer on executor %s to start task %d" % (offer.hostname, tid)
-                print self._executors
 
                 task = mesos_pb2.TaskInfo()
                 task.task_id.value = str(tid)
@@ -109,6 +122,9 @@ class MesosScheduler (mesos.Scheduler):
 
                 tasks.append(task)
                 self.taskData[task.task_id.value] = (offer.slave_id, task.executor.executor_id)                  
+
+                self._executors[offer.hostname] = MesosSlave(offer, task)
+                print self._executors
 
             driver.launchTasks(offer.id, tasks)
 
@@ -132,14 +148,14 @@ class MesosScheduler (mesos.Scheduler):
         if update.state == mesos_pb2.TASK_FINISHED:
             self.tasksFinished += 1
 
-            if self.tasksFinished == MesosScheduler.TOTAL_TASKS:
-                print "all tasks done, waiting for final framework message"
+            if self.tasksFinished == self._n_exe:
+                print "all executors launched, waiting for final framework message"
 
             slave_id, executor_id = self.taskData[update.task_id.value]
-
             self.messagesSent += 1
+
             ## NB: integrate service launch here
-            message = str('{ "port": 9311 }')
+            message = str(dumps([ self._exe_path, "-p", "9311" ]))
             driver.sendFrameworkMessage(executor_id, slave_id, message)
 
 
@@ -154,17 +170,18 @@ class MesosScheduler (mesos.Scheduler):
         print "received message:", repr(str(message))
         self.messagesReceived += 1
 
-        if self.messagesReceived == MesosScheduler.TOTAL_TASKS:
+        if self.messagesReceived == self._n_exe:
             if self.messagesReceived != self.messagesSent:
-                print "sent", self.messagesSent, "but received", self.messagesReceived
+                print "sent", self.messagesSent, "received", self.messagesReceived
                 sys.exit(1)
 
-            print "all tasks done, and all messages received; exiting"
+            # NB: being Framework orchestration via REST services
+            print "all executors launched and all messages received; exiting"
             driver.stop()
 
 
     @staticmethod
-    def start_framework (master_uri, exe_path):
+    def start_framework (master_uri, exe_path, n_exe):
         # initialize an executor
         executor = mesos_pb2.ExecutorInfo()
         executor.executor_id.value = "default"
@@ -181,6 +198,12 @@ class MesosScheduler (mesos.Scheduler):
             print "enabling checkpoint for the framework"
             framework.checkpoint = True
     
+        ## NB: create a MesosScheduler and capture the command line options
+        sched = MesosScheduler(executor)
+        sched._exe_path = exe_path
+        sched._n_exe = n_exe
+
+        # initialize a driver
         if os.getenv("MESOS_AUTHENTICATE"):
             print "enabling authentication for the framework"
     
@@ -196,9 +219,9 @@ class MesosScheduler (mesos.Scheduler):
             credential.principal = os.getenv("DEFAULT_PRINCIPAL")
             credential.secret = os.getenv("DEFAULT_SECRET")
 
-            driver = mesos.MesosSchedulerDriver(MesosScheduler(executor), framework, master_uri, credential)
+            driver = mesos.MesosSchedulerDriver(sched, framework, master_uri, credential)
         else:
-            driver = mesos.MesosSchedulerDriver(MesosScheduler(executor), framework, master_uri)
+            driver = mesos.MesosSchedulerDriver(sched, framework, master_uri)
 
         return driver
 
@@ -235,7 +258,7 @@ class MesosExecutor (mesos.Executor):
             driver.sendStatusUpdate(update)
             print "sent status update 1..."
 
-            # NB: rip out this crap
+            # NB: resolve internal IP address, test port availability...
 
             update = mesos_pb2.TaskStatus()
             update.task_id.value = task.task_id.value
@@ -258,6 +281,7 @@ class MesosExecutor (mesos.Executor):
 
         # launch service
         print "received message %s" % message
+        print loads(message)
         subprocess.Popen(["/home/ubuntu/exelixi-master/src/exelixi.py", "-p", "9311"])
 
         # send the message back to the scheduler
