@@ -35,10 +35,17 @@ import mesos_pb2
 
 class MesosSlave (object):
     def __init__ (self, offer, task):
-        ## NB: debugging the structure of received protobuffers
-        self.hostname = offer.hostname
+        ## NB: debugging the structure of received protobuffers / slave state
+        self.host = offer.hostname
         self.slave_id = offer.slave_id.value
         self.task_id = task.task_id.value
+        self.ip_addr = None
+        self.port = None
+
+
+    def report (self):
+        ## NB: debugging the structure of received protobuffers / slave state
+        print "host %s slave %s task %s ip %s:%s" % (self.host, str(self.slave_id), str(self.task_id), str(self.ip_addr), str(self.port))
 
 
 class MesosScheduler (mesos.Scheduler):
@@ -121,8 +128,11 @@ class MesosScheduler (mesos.Scheduler):
                 tasks.append(task)
                 self.taskData[task.task_id.value] = (offer.slave_id, task.executor.executor_id)                  
 
+                ## NB: record/report slave state
                 self._executors[offer.hostname] = MesosSlave(offer, task)
-                print self._executors.items()
+
+                for _, exe in self._executors.items():
+                    print exe.report()
 
             driver.launchTasks(offer.id, tasks)
 
@@ -145,6 +155,11 @@ class MesosScheduler (mesos.Scheduler):
 
         if update.state == mesos_pb2.TASK_FINISHED:
             self.tasksFinished += 1
+
+            ## NB: update the relevant MesosSlave with discovery info
+            for _, exe in self._executors.items():
+                if exe.task_id == update.task_id.value:
+                    exe.ip_addr = str(update.data)
 
             if self.tasksFinished == self._n_exe:
                 print "all executors launched, waiting for final framework message"
@@ -255,7 +270,7 @@ class MesosExecutor (mesos.Executor):
             print update.data
             driver.sendStatusUpdate(update)
 
-            # NB: resolve internal IP address, test port availability...
+            ## NB: resolve internal IP address, test port availability...
             ip_addr = socket.gethostbyname(socket.gethostname())
 
             update = mesos_pb2.TaskStatus()
