@@ -251,7 +251,7 @@ class MesosScheduler (mesos.Scheduler):
         else:
             driver = mesos.MesosSchedulerDriver(sched, framework, master_uri)
 
-        exe_list = [ "%s:%s" % (exe.ip_addr, str(exe.port) for exe in self._executors.values() ]
+        exe_list = [ "%s:%s" % (exe.ip_addr, str(exe.port)) for exe in sched._executors.values() ]
         return exe_list, driver
 
 
