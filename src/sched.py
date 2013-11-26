@@ -19,7 +19,7 @@
 
 from gevent import monkey
 from service import Worker
-from threading import Thread
+#from threading import Thread
 import os
 import sys
 
@@ -226,45 +226,33 @@ class MesosExecutor (mesos.Executor):
         this executor until this callback has returned.
         """
 
-        # create a thread to run the task: tasks should always be run
-        # in new threads or processes, rather than inside launchTask
-        def run_task():
-            print "requested task %s" % task.task_id.value
+        print "requested task %s" % task.task_id.value
 
-            update = mesos_pb2.TaskStatus()
-            update.task_id.value = task.task_id.value
-            update.state = mesos_pb2.TASK_RUNNING
-            update.data = str('running: data with a \0 byte')
-            driver.sendStatusUpdate(update)
-            print "sent status update 1..."
+        update = mesos_pb2.TaskStatus()
+        update.task_id.value = task.task_id.value
+        update.state = mesos_pb2.TASK_RUNNING
+        update.data = str('running: data with a \0 byte')
+        driver.sendStatusUpdate(update)
+        print "sent status update 1..."
 
-            ## NB: this is where one would perform the requested task
-            print "perform task %s" % task.task_id.value
+        ## NB: this is where one would perform the requested task
+        print "perform task %s" % task.task_id.value
 
-            # launch service
-            pid = os.fork()
- 
-            if pid > 0:
-                try:
-                    # "And now, a public service announcement on behalf of the Greenlet Party..."
-                    monkey.patch_all()
+        # "And now, a public service announcement on behalf of the Greenlet Party..."
+        monkey.patch_all()
 
-                    svc = Worker(port=9311)
-                    svc.start()
-                except KeyboardInterrupt:
-                    pass
+        try:
+            svc = Worker(port=9311)
+            svc.start()
+        except KeyboardInterrupt:
+            pass
 
-            else:
-                update = mesos_pb2.TaskStatus()
-                update.task_id.value = task.task_id.value
-                update.state = mesos_pb2.TASK_FINISHED
-                update.data = str('complete: data with a \0 byte')
-                driver.sendStatusUpdate(update)
-                print "sent status update 2..."
-
-        # now run the requested task
-        thread = Thread(target=run_task)
-        thread.start()
+        update = mesos_pb2.TaskStatus()
+        update.task_id.value = task.task_id.value
+        update.state = mesos_pb2.TASK_FINISHED
+        update.data = str('complete: data with a \0 byte')
+        driver.sendStatusUpdate(update)
+        print "sent status update 2..."
 
 
     def frameworkMessage (self, driver, message):
@@ -287,5 +275,4 @@ class MesosExecutor (mesos.Executor):
 
 if __name__=='__main__':
     print "Starting executor..."
-
     MesosExecutor.run_executor()
