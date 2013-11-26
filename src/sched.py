@@ -35,9 +35,6 @@ import mesos_pb2
 class MesosSlave (object):
     def __init__ (self, offer, task):
         ## NB: debugging the structure of received protobuffers
-        print "OFFER", dumps(offer)
-        print "TASK", dumps(task)
-
         self.hostname = offer.hostname
         self.slave_id = offer.slave_id.value
         self.task_id = task.task_id.value
@@ -60,8 +57,8 @@ class MesosScheduler (mesos.Scheduler):
 
         ## NB: customized for Exelixi
         self._executors = {}
-        self._exe_path = exe_path
-        self._n_exe = n_exe
+        self._exe_path = None
+        self._n_exe = None
 
 
     def registered (self, driver, frameworkId, masterInfo):
@@ -124,7 +121,7 @@ class MesosScheduler (mesos.Scheduler):
                 self.taskData[task.task_id.value] = (offer.slave_id, task.executor.executor_id)                  
 
                 self._executors[offer.hostname] = MesosSlave(offer, task)
-                print self._executors
+                print self._executors.items()
 
             driver.launchTasks(offer.id, tasks)
 
@@ -282,10 +279,11 @@ class MesosExecutor (mesos.Executor):
         # launch service
         print "received message %s" % message
         print loads(message)
-        subprocess.Popen(["/home/ubuntu/exelixi-master/src/exelixi.py", "-p", "9311"])
+        #subprocess.Popen(["/home/ubuntu/exelixi-master/src/exelixi.py", "-p", "9311"])
+        subprocess.Popen(loads(message))
 
         # send the message back to the scheduler
-        driver.sendFrameworkMessage(str("bokay"))
+        driver.sendFrameworkMessage(str("service launched"))
 
 
     @staticmethod

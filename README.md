@@ -70,7 +70,7 @@ Next, run the installation commands on each of the slaves:
 Great, ready to roll!
 Now launch the Framework, which in turn launches the Executors remotely on slave nodes:
 
-    python ./src/exelixi.py -m localhost:5050
+    python ./src/exelixi.py -m localhost:5050 -e 2
 
 If everything runs successfully, the log should conclude with a final line:
 
