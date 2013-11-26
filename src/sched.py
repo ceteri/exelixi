@@ -21,6 +21,7 @@ from json import dumps, loads
 from service import Worker
 from threading import Thread
 import os
+import socket
 import subprocess
 import sys
 
@@ -47,7 +48,7 @@ class MesosScheduler (mesos.Scheduler):
     TASK_MEM = 32
 
 
-    def __init__ (self, executor):
+    def __init__ (self, executor, exe_path, n_exe):
         self.executor = executor
         self.taskData = {}
         self.tasksLaunched = 0
@@ -57,8 +58,8 @@ class MesosScheduler (mesos.Scheduler):
 
         ## NB: customized for Exelixi
         self._executors = {}
-        self._exe_path = None
-        self._n_exe = None
+        self._exe_path = exe_path
+        self._n_exe = n_exe
 
 
     def registered (self, driver, frameworkId, masterInfo):
@@ -196,9 +197,7 @@ class MesosScheduler (mesos.Scheduler):
             framework.checkpoint = True
     
         ## NB: create a MesosScheduler and capture the command line options
-        sched = MesosScheduler(executor)
-        sched._exe_path = exe_path
-        sched._n_exe = n_exe
+        sched = MesosScheduler(executor, exe_path, n_exe)
 
         # initialize a driver
         if os.getenv("MESOS_AUTHENTICATE"):
@@ -251,18 +250,21 @@ class MesosExecutor (mesos.Executor):
             update = mesos_pb2.TaskStatus()
             update.task_id.value = task.task_id.value
             update.state = mesos_pb2.TASK_RUNNING
-            update.data = str('running: data with a \0 byte')
+            update.data = str("running discovery task")
+
+            print update.data
             driver.sendStatusUpdate(update)
-            print "sent status update 1..."
 
             # NB: resolve internal IP address, test port availability...
+            ip_addr = socket.gethostbyname(socket.gethostname())
 
             update = mesos_pb2.TaskStatus()
             update.task_id.value = task.task_id.value
             update.state = mesos_pb2.TASK_FINISHED
-            update.data = str('complete: data with a \0 byte')
+            update.data = str(ip_addr)
+
+            print update.data
             driver.sendStatusUpdate(update)
-            print "sent status update 2..."
 
         # now run the requested task
         thread = Thread(target=run_task)
@@ -278,8 +280,6 @@ class MesosExecutor (mesos.Executor):
 
         # launch service
         print "received message %s" % message
-        print loads(message)
-        #subprocess.Popen(["/home/ubuntu/exelixi-master/src/exelixi.py", "-p", "9311"])
         subprocess.Popen(loads(message))
 
         # send the message back to the scheduler
