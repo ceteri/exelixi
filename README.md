@@ -41,12 +41,12 @@ On the master, download the <code>master</code> branch of the <b>Exelixi</b> cod
 
 Next, run the installation commands on each of the slaves:
 
-    python ./src/exelixi.py -n localhost:5050 | ./bin/install.sh
+    ./src/exelixi.py -n localhost:5050 | ./bin/install.sh
 
 Now launch the Framework, which in turn launches the Executors remotely on slave nodes.
 In the following case, it runs on two slave nodes:
 
-    python ./src/exelixi.py -m localhost:5050 -e 2
+    ./src/exelixi.py -m localhost:5050 -e 2
 
 If everything runs successfully, the log should conclude with a final line:
 
