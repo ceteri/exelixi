@@ -55,7 +55,7 @@ If everything runs successfully, the log should conclude with a final line:
 See a [GitHub gist](https://gist.github.com/ceteri/7609046) for an example of a successful run.
 
 
-### Author Contact
+### Blame List
 
 [Paco Nathan](https://github.com/ceteri)
 
