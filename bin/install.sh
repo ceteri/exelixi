@@ -2,6 +2,8 @@
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
+printf "UserKnownHostsFile /dev/null\nStrictHostKeyChecking no\n" >> ~/.ssh/config
+
 read slave_list
 arr=$(echo $slave_list | tr " " "\n")
 
