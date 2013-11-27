@@ -20,7 +20,7 @@
 from argparse import ArgumentParser
 from ga import APP_NAME
 from json import loads
-from service import Worker
+from service import Framework, Worker
 from urllib2 import urlopen
 
 
@@ -94,7 +94,7 @@ if __name__=='__main__':
         ## NB: TODO make path relative
         exe_path = "/home/ubuntu/exelixi-master/src/exelixi.py"
 
-        driver = MesosScheduler.start_framework(master_uri, exe_path, args.executors)
+        driver = MesosScheduler.start_framework(master_uri, exe_path, args.executors, args.feature)
         MesosScheduler.stop_framework(driver)
 
     elif args.slaves:
@@ -104,7 +104,9 @@ if __name__=='__main__':
         if args.feature:
             print "  using %s for the GA parameters and customizations" % (args.feature)
 
-            ## NB: TODO begin Framework orchestration via REST services
+        ## run Framework orchestration via REST endpoints on the Executors
+        fra = Framework(args.feature)
+        fra.orchestrate(args.slaves)
 
     elif args.port:
         print "%s running an Executor service on port %s" % (APP_NAME, args.port[0])

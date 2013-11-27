@@ -18,7 +18,7 @@
 
 
 from json import dumps, loads
-from service import Worker
+from service import Framework, Worker
 from threading import Thread
 from uuid import uuid1
 import os
@@ -58,7 +58,7 @@ class MesosScheduler (mesos.Scheduler):
     TASK_MEM = 32
 
 
-    def __init__ (self, executor, exe_path, n_exe):
+    def __init__ (self, executor, exe_path, n_exe, ff_name):
         self.executor = executor
         self.taskData = {}
         self.tasksLaunched = 0
@@ -70,6 +70,7 @@ class MesosScheduler (mesos.Scheduler):
         self._executors = {}
         self._exe_path = exe_path
         self._n_exe = n_exe
+        self._ff_name = ff_name
 
 
     def registered (self, driver, frameworkId, masterInfo):
@@ -202,7 +203,10 @@ class MesosScheduler (mesos.Scheduler):
             exe_list = [ "%s:%s" % (exe.ip_addr, exe.port) for exe in self._executors.values() ]
             print exe_list
 
-            ## NB: TODO begin Framework orchestration via REST services
+            ## run Framework orchestration via REST endpoints on the Executors
+            fra = Framework(self.ff_name)
+            fra.orchestrate(exe_list)
+
             driver.stop()
 
 
@@ -214,7 +218,7 @@ class MesosScheduler (mesos.Scheduler):
 
 
     @staticmethod
-    def start_framework (master_uri, exe_path, n_exe):
+    def start_framework (master_uri, exe_path, n_exe, ff_name):
         # initialize an executor
         executor = mesos_pb2.ExecutorInfo()
         executor.executor_id.value = uuid1().hex
@@ -232,7 +236,7 @@ class MesosScheduler (mesos.Scheduler):
             framework.checkpoint = True
     
         ## NB: create a MesosScheduler and capture the command line options
-        sched = MesosScheduler(executor, exe_path, n_exe)
+        sched = MesosScheduler(executor, exe_path, n_exe, ff_name)
 
         # initialize a driver
         if os.getenv("MESOS_AUTHENTICATE"):

@@ -68,7 +68,8 @@ Next, run the installation commands on each of the slaves:
     python ./src/exelixi.py -n localhost:5050 | ./bin/install.sh
 
 Great, ready to roll!
-Now launch the Framework, which in turn launches the Executors remotely on slave nodes:
+Now launch the Framework, which in turn launches the Executors remotely on slave nodes.
+In the following case, it runs on two slave nodes:
 
     python ./src/exelixi.py -m localhost:5050 -e 2
 
@@ -88,11 +89,7 @@ First, launch one Executor locally:
 
 Then launch a Framework to run the default [GA] as an example:
 
-    ./src/driver.py localhost:9311 shard/config ./test
-    ./src/driver.py localhost:9311 pop/init ./test
-    ./src/driver.py localhost:9311 pop/hist ./test
-    ./src/driver.py localhost:9311 pop/next ./test
-    ./src/driver.py localhost:9311 stop ./test
+    ./src/exelixi.py -s localhost:9311
 
 Note that there are trade-offs regarding standalone mode.
 Pros: simple to test the customization of a [GA] quickly, without requiring an [Apache Mesos] cluster.
@@ -294,6 +291,7 @@ Heartfelt kudos to
 ### TODO
 
 * articulate all of the [REST] endpoint services
+* handle remote reify for Individuals
 * support for multiple Executors in the [hash ring]
 * shard checkpoint to [HDFS]
 * shard recovery from [HDFS]
