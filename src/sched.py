@@ -47,7 +47,7 @@ class MesosSlave (object):
 
     def report (self):
         ## NB: debugging the structure of received protobuffers / slave state
-        return "host %s slave %s task %s exe %s ip %s:%s" % (self.host, str(self.slave_id), str(self.task_id), str(self.executor_id), self.ip_addr, str(self.port))
+        return "host %s slave %s task %s exe %s ip %s:%s" % (self.host, str(self.slave_id), str(self.task_id), self.executor_id, self.ip_addr, self.port)
 
 
 class MesosScheduler (mesos.Scheduler):
@@ -158,7 +158,7 @@ class MesosScheduler (mesos.Scheduler):
         """
 
         print "task %s is in state %d" % (update.task_id.value, update.state)
-        print "actual:", repr(str(update.data))
+        print "task update:", repr(str(update.data))
 
         if update.state == mesos_pb2.TASK_FINISHED:
             self.tasksFinished += 1
@@ -187,7 +187,7 @@ class MesosScheduler (mesos.Scheduler):
         """
 
         print "executor %s slave %s" % (executorId, slaveId)
-        print "received message:", repr(str(message))
+        print "executor message received:", repr(str(message))
         self.messagesReceived += 1
 
         if self.messagesReceived == self._n_exe:
@@ -199,7 +199,10 @@ class MesosScheduler (mesos.Scheduler):
                 print exe.report()
 
             print "all executors launched and all messages received; exiting"
-            ## NB: begin Framework orchestration via REST services
+            exe_list = [ "%s:%s" % (exe.ip_addr, exe.port) for exe in self._executors.values() ]
+            print exe_list
+
+            ## NB: TODO begin Framework orchestration via REST services
             driver.stop()
 
 
@@ -251,8 +254,7 @@ class MesosScheduler (mesos.Scheduler):
         else:
             driver = mesos.MesosSchedulerDriver(sched, framework, master_uri)
 
-        exe_list = [ "%s:%s" % (exe.ip_addr, exe.port) for exe in sched._executors.values() ]
-        return exe_list, driver
+        return driver
 
 
     @staticmethod
