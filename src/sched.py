@@ -18,7 +18,7 @@
 
 
 from json import dumps, loads
-from service import Framework, Worker
+from service import ExecutorInfo, Framework, Worker
 from threading import Thread
 from uuid import uuid1
 import os
@@ -32,22 +32,6 @@ import mesos_pb2
 
 ######################################################################
 ## class definitions
-
-
-class MesosSlave (object):
-    def __init__ (self, offer, task):
-        ## NB: debugging the structure of received protobuffers / slave state
-        self.host = offer.hostname
-        self.slave_id = offer.slave_id.value
-        self.task_id = task.task_id.value
-        self.executor_id = task.executor.executor_id
-        self.ip_addr = None
-        self.port = None
-
-
-    def report (self):
-        ## NB: debugging the structure of received protobuffers / slave state
-        return "host %s slave %s task %s exe %s ip %s:%s" % (self.host, str(self.slave_id), str(self.task_id), self.executor_id, self.ip_addr, self.port)
 
 
 class MesosScheduler (mesos.Scheduler):
@@ -136,7 +120,7 @@ class MesosScheduler (mesos.Scheduler):
                 self.taskData[task.task_id.value] = (offer.slave_id, task.executor.executor_id)
 
                 ## NB: record/report slave state
-                self._executors[offer.hostname] = MesosSlave(offer, task)
+                self._executors[offer.hostname] = ExecutorInfo(offer, task)
 
                 for exe in self._executors.values():
                     print exe.report()
@@ -167,9 +151,10 @@ class MesosScheduler (mesos.Scheduler):
             slave_id, executor_id = self.taskData[update.task_id.value]
             self.messagesSent += 1
 
-            ## NB: update the MesosSlave with discovery info
+            ## update the ExecutorInfo with details from the initial discovery task
             exe = self.lookupExecutor(executor_id)
             exe.ip_addr = str(update.data)
+            ## NB: TODO make the port variable?
             exe.port = Worker.DEFAULT_PORT
 
             if self.tasksFinished == self._n_exe:

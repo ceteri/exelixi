@@ -351,6 +351,21 @@ class Framework (object):
         self.send_exe_rest(exe_list, "stop", {})
 
 
+class ExecutorInfo (object):
+    def __init__ (self, offer, task):
+        self.host = offer.hostname
+        self.slave_id = offer.slave_id.value
+        self.task_id = task.task_id.value
+        self.executor_id = task.executor.executor_id
+        self.ip_addr = None
+        self.port = None
+
+
+    def report (self):
+        """print a report, for logging/debugging mostly"""
+        return "host %s slave %s task %s exe %s ip %s:%s" % (self.host, str(self.slave_id), str(self.task_id), self.executor_id, self.ip_addr, self.port)
+
+
 if __name__=='__main__':
     ## Framework operations:
 

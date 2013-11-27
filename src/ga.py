@@ -25,6 +25,7 @@ from importlib import import_module
 from json import dumps, loads
 from random import random, sample
 from urllib2 import Request, urlopen
+import sys
 
 
 ######################################################################
@@ -253,8 +254,13 @@ class Individual (object):
 
 
 if __name__=='__main__':
+    # parse command line options
+    if len(sys.argv) < 2:
+        ff_name = "run.FeatureFactory"
+    else:
+        ff_name = sys.argv[1]
+
     ## test GA in standalone-mode, i.e., without a Framework or Executor
-    ff_name = "run.FeatureFactory"
     ff = instantiate_class(ff_name)
 
     # initialize a Population of unique Individuals at generation 0
