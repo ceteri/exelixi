@@ -286,24 +286,46 @@ class Worker (object):
 
 
 class Framework (object):
-    def __init__ (self, ff_name, prefix="/tmp/exelixi/"):
+    def __init__ (self, ff_name, prefix="/tmp/exelixi"):
         # system parameters, for representing operational state
         self.ff_name = ff_name
         self.feature_factory = instantiate_class(ff_name)
         self.uuid = uuid1().hex
-        self.prefix = prefix + self.uuid
-        self.hash_ring = None
+        self.prefix = prefix + "/" + self.uuid
         self.n_gen = self.feature_factory.n_gen
         self.current_gen = 0
 
+        self._shard_assoc = None
+        print self.prefix
 
-    def send_exe_rest (self, exe_list, path, base_msg):
+
+    def _gen_shard_id (self, i, n):
+        """generate a shard_id"""
+        s = str(i)
+        z = ''.join([ '0' for _ in xrange(len(str(n)) - len(s)) ])
+        return "shard/" + z + s
+
+
+    def set_exe_list (self, exe_list, exe_info=None):
+        """associate shards with executors"""
+        self._shard_assoc = {}
+
+        for i in xrange(len(exe_list)):
+            shard_id = self._gen_shard_id(i, len(exe_list))
+
+            if not exe_info:
+                self._shard_assoc[shard_id] = [exe_list[i], None]
+            else:
+                self._shard_assoc[shard_id] = [exe_list[i], exe_info[i]]
+
+        print self._shard_assoc
+
+
+    def _send_exe_rest (self, path, base_msg):
         """access a REST endpoint on each of the Executors"""
         json_str = []
 
-        for exe_uri in exe_list:
-            ## NB: find the shard_id per Executor
-            shard_id = "00001"
+        for shard_id, (exe_uri, exe_info) in self._shard_assoc.items():
             msg = base_msg.copy()
 
             # populate credentials
@@ -313,7 +335,8 @@ class Framework (object):
             # POST to the REST endpoint
             req = Request("http://" + exe_uri + "/" + path)
             req.add_header('Content-Type', 'application/json')
-            print "sending", exe_uri, path, dumps(msg)
+            print "send", exe_uri, path
+            print dumps(msg)
 
             # read/collect the response
             f = urlopen(req, dumps(msg))
@@ -322,33 +345,33 @@ class Framework (object):
         return json_str
 
 
-    def orchestrate (self, exe_list):
+    def orchestrate (self):
         """orchestrate an algorithm run"""
 
         # configure the shards
-        self.send_exe_rest(exe_list, "shard/config", {})
+        self._send_exe_rest("shard/config", {})
 
         # initialize a Population of unique Individuals at generation 0
-        self.send_exe_rest(exe_list, "pop/init", { "ff_name": self.ff_name })
-        pop = Population(Individual(), self.ff_name, prefix=self.prefix, hash_ring=self.hash_ring)
+        self._send_exe_rest("pop/init", { "ff_name": self.ff_name })
+        pop = Population(Individual(), self.ff_name, prefix=self.prefix, hash_ring=None)
 
         # iterate N times or until a "good enough" solution is found
 
         while self.current_gen < self.n_gen:
             ## NB: handle multiple shards
-            json_str = self.send_exe_rest(exe_list, "pop/hist", {})[0]
+            json_str = self._send_exe_rest("pop/hist", {})[0]
             hist = loads(json_str)
 
             if pop.test_termination(self.current_gen, hist):
                 break
 
             fitness_cutoff = pop.get_fitness_cutoff(hist)
-            self.send_exe_rest(exe_list, "pop/next", { "current_gen": self.current_gen, "fitness_cutoff": fitness_cutoff })
+            self._send_exe_rest("pop/next", { "current_gen": self.current_gen, "fitness_cutoff": fitness_cutoff })
 
             self.current_gen += 1
             ## NB: TODO save state to Zookeeper
 
-        self.send_exe_rest(exe_list, "stop", {})
+        self._send_exe_rest("stop", {})
 
 
 class ExecutorInfo (object):
@@ -359,6 +382,10 @@ class ExecutorInfo (object):
         self.executor_id = task.executor.executor_id
         self.ip_addr = None
         self.port = None
+
+    def get_exe_uri (self):
+        """generate a URI for the service on this Executor"""
+        return self.ip_addr + ":" + self.port
 
 
     def report (self):
@@ -380,7 +407,8 @@ if __name__=='__main__':
     fra = Framework(ff_name)
     print "%s: framework launching at %s based on %s..." % (APP_NAME, fra.prefix, ff_name)
 
-    fra.orchestrate([exe_uri])
+    fra.set_exe_list([exe_uri])
+    fra.orchestrate()
     sys.exit(0)
 
     # report summary

@@ -70,13 +70,21 @@ if __name__=='__main__':
     group5.add_argument("-n", "--nodes", nargs=1, metavar="HOST:PORT",
                         help="location for one of the masters")
 
-    parser.add_argument("-f", "--feature", nargs=1, metavar="PKG.CLASS", default="run.FeatureFactory",
+    parser.add_argument("--feature", nargs=1, metavar="PKG.CLASS", default="run.FeatureFactory",
                         help="extension of FeatureFactory class to use for GA parameters and customizations")
+    parser.add_argument("--prefix", nargs=1, default="hdfs://exelixi",
+                        help="path prefix for durable storage")
 
     args = parser.parse_args()
     #print args
 
     # interpret arguments based on the different operational modes
+
+    if args.feature:
+        print "...using %s for the GA parameters and customizations" % (args.feature)
+
+    if args.prefix:
+        print "...using %s for the path prefix in durable storage" % (args.prefix)
 
     if args.nodes:
         print get_slave_list(args.nodes[0])
@@ -85,28 +93,23 @@ if __name__=='__main__':
         print "%s running a Framework atop an Apache Mesos cluster" % (APP_NAME),
         print "with master %s and %d executor(s)" % (args.master[0], args.executors)
 
-        if args.feature:
-            print "  using %s for the GA parameters and customizations" % (args.feature)
-
         from sched import MesosScheduler
 
         master_uri = get_master_leader(args.master[0])
         ## NB: TODO make path relative
         exe_path = "/home/ubuntu/exelixi-master/src/exelixi.py"
 
-        driver = MesosScheduler.start_framework(master_uri, exe_path, args.executors, args.feature)
+        driver = MesosScheduler.start_framework(master_uri, exe_path, args.executors, args.feature, args.prefix)
         MesosScheduler.stop_framework(driver)
 
     elif args.slaves:
         print "%s running a Framework in standalone mode" % (APP_NAME),
         print "with slave(s) %s" % (args.slaves)
 
-        if args.feature:
-            print "  using %s for the GA parameters and customizations" % (args.feature)
-
         ## run Framework orchestration via REST endpoints on the Executors
-        fra = Framework(args.feature)
-        fra.orchestrate(args.slaves)
+        fra = Framework(args.feature, args.prefix)
+        fra.set_exe_list(args.slaves)
+        fra.orchestrate()
 
     elif args.port:
         print "%s running an Executor service on port %s" % (APP_NAME, args.port[0])
