@@ -23,6 +23,7 @@ from hashlib import sha224
 from hashring import HashRing
 from importlib import import_module
 from json import dumps, loads
+from operator import itemgetter
 from random import random, sample
 from urllib2 import Request, urlopen
 import sys
@@ -124,17 +125,23 @@ class Population (object):
 
     def get_fitness_cutoff (self, hist):
         """determine fitness cutoff (bin lower bounds) for the parent selection filter"""
-        sum = 0
+        h = hist.items()
+        h.sort(reverse=True)
+        print "fit", h
+
+        n_indiv = sum([ count for bin, count in h ])
+        part_sum = 0
         break_next = False
 
-        for bin, count in hist:
+        for bin, count in h:
             if break_next:
                 break
 
-            sum += count
-            percentile = sum / float(self.n_pop)
+            part_sum += count
+            percentile = part_sum / float(n_indiv)
             break_next = percentile >= self._selection_rate
 
+        print "fit", percentile, part_sum, n_indiv, bin
         return bin
 
 
@@ -153,7 +160,7 @@ class Population (object):
 
     def _select_parents (self, current_gen, fitness_cutoff):
         """select the parents for the next generation"""
-        partition = map(lambda x: (x.get_fitness() >= fitness_cutoff, x), self._shard.values())
+        partition = map(lambda x: (round(x.get_fitness(), self._hist_granularity) >= fitness_cutoff, x), self._shard.values())
         good_fit = map(lambda x: x[1], filter(lambda x: x[0], partition))
         poor_fit = map(lambda x: x[1], filter(lambda x: not x[0], partition))
 

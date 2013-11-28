@@ -48,10 +48,11 @@ In the following case, it runs on two slave nodes:
 
     ./src/exelixi.py -m localhost:5050 -e 2
 
-If everything runs successfully, the log should conclude with a final line:
+If everything gets set up successfully, the log should conclude with a final line:
 
-    all tasks done, and all messages received; exiting
+    all executors launched and init tasks completed
 
+From there, the [GA] runs.
 See a [GitHub gist](https://gist.github.com/ceteri/7609046) for an example of a successful run.
 
 

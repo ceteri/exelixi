@@ -80,11 +80,11 @@ class FeatureFactory (object):
         ## NB: override this termination test
 
         # find the mean squared error (MSE) of fitness for a population
-        n_indiv = sum([ count for bin, count in hist ])
-        mse = sum([ count * (1.0 - bin) ** 2.0 for bin, count in hist ]) / float(n_indiv)
+        n_indiv = sum([ count for bin, count in hist.items() ])
+        mse = sum([ count * (1.0 - bin) ** 2.0 for bin, count in hist.items() ]) / float(n_indiv)
 
         # report the progress for one generation
-        print current_gen, n_indiv, "%.2e" % mse, filter(lambda x: x[1] > 0, hist)
+        print "test", current_gen, n_indiv, "%.2e" % mse, filter(lambda x: x[1] > 0, hist.items())
 
         # stop when a "good enough" solution is found
         return mse <= term_limit

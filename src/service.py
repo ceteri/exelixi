@@ -345,6 +345,15 @@ class Framework (object):
         return json_str
 
 
+    def aggregate_hist (self, hist, shard_hist):
+        """aggregate the values of a shard's partial histogram into the full histogram"""
+        for key, val in shard_hist:
+            if key not in hist:
+                hist[key] = val
+            else:
+                hist[key] += val
+
+
     def orchestrate (self):
         """orchestrate an algorithm run"""
 
@@ -356,11 +365,11 @@ class Framework (object):
         pop = Population(Individual(), self.ff_name, prefix=self.prefix, hash_ring=None)
 
         # iterate N times or until a "good enough" solution is found
-
         while self.current_gen < self.n_gen:
-            ## NB: handle multiple shards
-            json_str = self._send_exe_rest("pop/hist", {})[0]
-            hist = loads(json_str)
+            hist = {}
+
+            for shard_hist_json in self._send_exe_rest("pop/hist", {}):
+                self.aggregate_hist(hist, loads(shard_hist_json))
 
             if pop.test_termination(self.current_gen, hist):
                 break

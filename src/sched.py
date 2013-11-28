@@ -185,15 +185,16 @@ class MesosScheduler (mesos.Scheduler):
             for exe in self._executors.values():
                 print exe.report()
 
-            print "all executors launched and all messages received; exiting"
-            exe_list = [ "%s:%s" % (exe.ip_addr, exe.port) for exe in self._executors.values() ]
-            print exe_list
+            print "all executors launched and init tasks completed"
+            exe_info = self._executors.values()
+            exe_list = [ exe.get_exe_uri() for exe in exe_info ]
 
             ## run Framework orchestration via REST endpoints on the Executors
             fra = Framework(self._ff_name, self._prefix)
-            fra.set_exe_list(exe_list)
+            fra.set_exe_list(exe_list, exe_info)
             fra.orchestrate()
 
+            ## after the end of an algorithm run, shutdown the Executors
             driver.stop()
 
 
