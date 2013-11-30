@@ -20,6 +20,7 @@
 from ga import instantiate_class, APP_NAME, Individual, Population
 from gevent import monkey, queue, wsgi, Greenlet
 from hashring import HashRing
+from itertools import chain
 from json import dumps, loads
 from urllib2 import Request, urlopen
 from uuid import uuid1
@@ -144,6 +145,23 @@ class Worker (object):
             self.bad_auth(payload, body, start_response)
 
 
+    def pop_enum (self, *args, **kwargs):
+        """enumerate the Individuals in this shard of the Population"""
+        payload = args[0]
+        body = args[1]
+        start_response = args[2]
+
+        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            fitness_cutoff = payload["fitness_cutoff"]
+
+            start_response('200 OK', [('Content-Type', 'application/json')])
+            body.put(dumps(self.pop.enum(fitness_cutoff)))
+            body.put("\r\n")
+            body.put(StopIteration)
+        else:
+            self.bad_auth(payload, body, start_response)
+
+
     def _response_handler (self, env, start_response):
         """handle HTTP request/response"""
         uri_path = env['PATH_INFO']
@@ -230,6 +248,12 @@ class Worker (object):
             gl = Greenlet(self.pop_next, payload, body, start_response)
             gl.start()
 
+        elif uri_path == '/pop/enum':
+            # enumerate the Individuals in this shard of the Population
+            payload = loads(env['wsgi.input'].read())
+            gl = Greenlet(self.pop_enum, payload, body, start_response)
+            gl.start()
+
         elif uri_path == '/pop/reify':
             # test/add a newly generated Individual into the Population (birth)
             payload = loads(env['wsgi.input'].read())
@@ -241,15 +265,6 @@ class Worker (object):
 
         elif uri_path == '/pop/evict':
             # remove an Individual from the Population (death)
-            payload = loads(env['wsgi.input'].read())
-            print "POST", payload
-            ## TODO
-            start_response('200 OK', [('Content-Type', 'text/plain')])
-            body.put("Bokay\r\n")
-            body.put(StopIteration)
-
-        elif uri_path == '/pop/enum':
-            # enumerate the Individuals in this shard of the Population
             payload = loads(env['wsgi.input'].read())
             print "POST", payload
             ## TODO
@@ -380,6 +395,18 @@ class Framework (object):
             self.current_gen += 1
             ## NB: TODO save state to Zookeeper
 
+        # report the best Individuals in the final result
+        results = []
+
+        for l in self._send_exe_rest("pop/enum", { "fitness_cutoff": fitness_cutoff }):
+            results.extend(loads(l))
+
+        results.sort(reverse=True)
+
+        for x in results:
+            print "\t".join(x)
+
+        # shutdown
         self._send_exe_rest("stop", {})
 
 

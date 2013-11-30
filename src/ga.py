@@ -193,6 +193,12 @@ class Population (object):
         return self.feature_factory.test_termination(current_gen, self._term_limit, hist)
 
 
+    def enum (self, fitness_cutoff):
+        """enum all Individuals that exceed the given fitness cutoff"""
+        return [[ "%0.4f" % indiv.get_fitness(), str(indiv.gen), indiv.get_json_feature_set() ]
+                for indiv in filter(lambda x: x.get_fitness() >= fitness_cutoff, self._shard.values()) ]
+
+
     def report_summary (self):
         """report a summary of the evolution"""
         for indiv in sorted(self._shard.values(), key=lambda x: x.get_fitness(), reverse=True):
