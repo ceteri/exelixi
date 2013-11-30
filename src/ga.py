@@ -23,7 +23,6 @@ from hashlib import sha224
 from hashring import HashRing
 from importlib import import_module
 from json import dumps, loads
-from operator import itemgetter
 from random import random, sample
 from urllib2 import Request, urlopen
 import sys
@@ -83,19 +82,12 @@ class Population (object):
         self._shard = {}
         self._bf = BloomFilter(num_bytes=125, num_probes=14, iterable=[])
 
-        self._quiesced = True
-
 
     def set_ring (self, shard_id, exe_dict):
         """initialize the HashRing"""
         self._shard_id = shard_id
         self._exe_dict = exe_dict
         self._hash_ring = HashRing(exe_dict.keys())
-
-
-    def set_quiesced (self, quiesced):
-        """flag whether processing has quiesced for the current generation"""
-        self._quiesced = quiesced
 
 
     ######################################################################

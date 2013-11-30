@@ -18,7 +18,9 @@
 
 
 from ga import instantiate_class, post_exe_rest, APP_NAME, Individual, Population
-from gevent import monkey, queue, wsgi, Greenlet
+from gevent import monkey, spawn, wsgi, Greenlet
+from gevent.event import Event
+from gevent.queue import JoinableQueue, Queue
 from hashring import HashRing
 from itertools import chain
 from json import dumps, loads
@@ -47,6 +49,8 @@ class Worker (object):
         self.ring = None
         self.ff_name = None
         self.pop = None
+        self.evt = None
+        self.reify_queue = None
 
 
     def start (self):
@@ -66,6 +70,21 @@ class Worker (object):
             # NB: you have dialed a wrong number!
             # returns incorrect response in this case, to avoid exception
             print "%s: incorrect shard %s prefix %s" % (APP_NAME, payload["shard_id"], payload["prefix"])
+
+
+    def reify_consumer (self):
+        """consume/serve reify requests until the queue empties"""
+
+        while True:
+            payload = self.reify_queue.get()
+
+            try:
+                key = payload["key"]
+                gen = payload["gen"]
+                feature_set = payload["feature_set"]
+                self.pop.receive_reify(key, gen, feature_set)
+            finally:
+                self.reify_queue.task_done()
 
 
     def shard_config (self, *args, **kwargs):
@@ -120,6 +139,9 @@ class Worker (object):
             self.pop = Population(Individual(), self.ff_name, self.prefix)
             self.pop.set_ring(self.shard_id, self.ring)
 
+            self.reify_queue = JoinableQueue()
+            spawn(self.reify_consumer)
+
             start_response('200 OK', [('Content-Type', 'text/plain')])
             body.put("Bokay\r\n")
             body.put(StopIteration)
@@ -134,14 +156,52 @@ class Worker (object):
         start_response = args[2]
 
         if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            self.evt = Event()
+
             # HTTP response first, then initiate long-running task
             start_response('200 OK', [('Content-Type', 'text/plain')])
             body.put("Bokay\r\n")
             body.put(StopIteration)
 
-            self.pop.set_quiesced(False)
             self.pop.populate(0)
-            self.pop.set_quiesced(True)
+
+            self.evt.set()
+            self.evt = None
+        else:
+            self.bad_auth(payload, body, start_response)
+
+
+    def pop_wait (self, *args, **kwargs):
+        """wait until all shards finished sending reify requests"""
+        payload = args[0]
+        body = args[1]
+        start_response = args[2]
+
+        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            if self.evt:
+                self.evt.wait()
+
+            # HTTP response first, then initiate long-running task
+            start_response('200 OK', [('Content-Type', 'text/plain')])
+            body.put("Bokay\r\n")
+            body.put(StopIteration)
+        else:
+            self.bad_auth(payload, body, start_response)
+
+
+    def pop_join (self, *args, **kwargs):
+        """join on the reify queue, to wait until it empties"""
+        payload = args[0]
+        body = args[1]
+        start_response = args[2]
+
+        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            self.reify_queue.join()
+
+            ## NB: perhaps use a long-polling HTTP request or websocket instead?
+            start_response('200 OK', [('Content-Type', 'text/plain')])
+            body.put("Bokay\r\n")
+            body.put(StopIteration)
         else:
             self.bad_auth(payload, body, start_response)
 
@@ -168,6 +228,8 @@ class Worker (object):
         start_response = args[2]
 
         if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            self.evt = Event()
+
             # HTTP response first, then initiate long-running task
             start_response('200 OK', [('Content-Type', 'text/plain')])
             body.put("Bokay\r\n")
@@ -175,9 +237,10 @@ class Worker (object):
 
             current_gen = payload["current_gen"]
             fitness_cutoff = payload["fitness_cutoff"]
-            self.pop.set_quiesced(False)
             self.pop.next_generation(current_gen, fitness_cutoff)
-            self.pop.set_quiesced(True)
+
+            self.evt.set()
+            self.evt = None
         else:
             self.bad_auth(payload, body, start_response)
 
@@ -206,14 +269,11 @@ class Worker (object):
         start_response = args[2]
 
         if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            self.reify_queue.put_nowait(payload)
+
             start_response('200 OK', [('Content-Type', 'text/plain')])
             body.put("Bokay\r\n")
             body.put(StopIteration)
-
-            key = payload["key"]
-            gen = payload["gen"]
-            feature_set = payload["feature_set"]
-            self.pop.receive_reify(key, gen, feature_set)
         else:
             self.bad_auth(payload, body, start_response)
 
@@ -221,7 +281,7 @@ class Worker (object):
     def _response_handler (self, env, start_response):
         """handle HTTP request/response"""
         uri_path = env['PATH_INFO']
-        body = queue.Queue()
+        body = Queue()
 
         ## NB: these handler cases can be collapsed into a common pattern
         ## except for config/stop -- later
@@ -293,6 +353,18 @@ class Worker (object):
             # create generation 0 of Individuals in this shard of the Population
             payload = loads(env['wsgi.input'].read())
             gl = Greenlet(self.pop_gen, payload, body, start_response)
+            gl.start()
+
+        elif uri_path == '/pop/wait':
+            # wait until all shards have finished sending reify requests
+            payload = loads(env['wsgi.input'].read())
+            gl = Greenlet(self.pop_wait, payload, body, start_response)
+            gl.start()
+
+        elif uri_path == '/pop/join':
+            # join on the reify queue, to wait until it empties
+            payload = loads(env['wsgi.input'].read())
+            gl = Greenlet(self.pop_join, payload, body, start_response)
             gl.start()
 
         elif uri_path == '/pop/hist':
@@ -415,35 +487,43 @@ class Framework (object):
     def orchestrate (self):
         """orchestrate an algorithm run"""
 
-        # configure the shards
+        # configure the shards and their HashRing
         self._send_exe_rest("shard/config", {})
-
         ring = { shard_id: exe_uri for shard_id, (exe_uri, exe_info) in self._shard_assoc.items() }
         self._send_exe_rest("ring/init", { "ring": ring })
 
-        # initialize a Population of unique Individuals at generation 0
+        # initialize a Population of unique Individuals at generation 0,
+        # then iterate N times or until a "good enough" solution is found
         pop = Population(Individual(), self.ff_name, prefix=self.prefix)
         self._send_exe_rest("pop/init", { "ff_name": self.ff_name })
         self._send_exe_rest("pop/gen", {})
 
-        # iterate N times or until a "good enough" solution is found
-        while self.current_gen < self.n_gen:
-            ## NB: TODO test whether all shards have quiesced
+        while True:
+            # test (1) wait until all shards have finished sending reify requests,
+            # then (2) join on each reify request queue, to wait until they have emptied
+            self._send_exe_rest("pop/wait", {})
+            self._send_exe_rest("pop/join", {})
 
+            if self.current_gen == self.n_gen:
+                break
+
+            # determine the fitness cutoff threshold
             hist = {}
 
             for shard_hist_json in self._send_exe_rest("pop/hist", {}):
                 print shard_hist_json
                 self.aggregate_hist(hist, loads(shard_hist_json))
 
+            # test for the terminating condition
             if pop.test_termination(self.current_gen, hist):
                 break
 
+            ## NB: TODO save Framework state to Zookeeper
+
+            # apply fitness cutoff and breed "children" for the next generation
             fitness_cutoff = pop.get_fitness_cutoff(hist)
             self._send_exe_rest("pop/next", { "current_gen": self.current_gen, "fitness_cutoff": fitness_cutoff })
-
             self.current_gen += 1
-            ## NB: TODO save state to Zookeeper
 
         # report the best Individuals in the final result
         results = []
