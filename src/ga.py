@@ -36,20 +36,42 @@ APP_NAME = "Exelixi"
 
 
 def instantiate_class (class_path):
+    """instantiate a class from the given package.class name"""
     module_name, class_name = class_path.split(".")
     return getattr(import_module(module_name), class_name)()
+
+
+def post_exe_rest (prefix, shard_id, exe_uri, path, base_msg):
+    """POST a JSON-based message to a REST endpoint on a shard"""
+    msg = base_msg.copy()
+
+    # populate credentials
+    msg["prefix"] = prefix
+    msg["shard_id"] = shard_id
+
+    # POST to the REST endpoint
+    req = Request("http://" + exe_uri + "/" + path)
+    req.add_header('Content-Type', 'application/json')
+    print "send", exe_uri, path
+    print dumps(msg)
+
+    # read/collect the response
+    f = urlopen(req, dumps(msg))
+    return f.readlines()
 
 
 ######################################################################
 ## class definitions
 
 class Population (object):
-    def __init__ (self, indiv_instance, ff_name, prefix="/tmp/exelixi", hash_ring=None):
+    def __init__ (self, indiv_instance, ff_name, prefix="/tmp/exelixi"):
         self.indiv_class = indiv_instance.__class__
         self.feature_factory = instantiate_class(ff_name)
 
         self.prefix = prefix
-        self._hash_ring = hash_ring
+        self._shard_id = None
+        self._exe_dict = None
+        self._hash_ring = None
 
         self.n_pop = self.feature_factory.n_pop
         self._term_limit = self.feature_factory.term_limit
@@ -60,6 +82,20 @@ class Population (object):
 
         self._shard = {}
         self._bf = BloomFilter(num_bytes=125, num_probes=14, iterable=[])
+
+        self._quiesced = True
+
+
+    def set_ring (self, shard_id, exe_dict):
+        """initialize the HashRing"""
+        self._shard_id = shard_id
+        self._exe_dict = exe_dict
+        self._hash_ring = HashRing(exe_dict.keys())
+
+
+    def set_quiesced (self, quiesced):
+        """flag whether processing has quiesced for the current generation"""
+        self._quiesced = quiesced
 
 
     ######################################################################
@@ -79,17 +115,29 @@ class Population (object):
 
     def reify (self, indiv):
         """test/add a newly generated Individual into the Population (birth)"""
+        neighbor_shard_id = None
+        exe_uri = None
+
         if self._hash_ring:
-            # NB: distribute this operation over the hash ring, through a remote queue
-            neighbor = self._hash_ring.get_node(indiv.key)
-            # POST
-            req = Request(neighbor + "/pop/reify")
-            req.add_header('Content-Type', 'application/json')
-            data = loads("{ 'foo': 'bar' }")
-            f = urlopen(req, data)
+            neighbor_shard_id = self._hash_ring.get_node(indiv.key)
+
+            if neighbor_shard_id != self._shard_id:
+                exe_uri = self._exe_dict[neighbor_shard_id]
+
+        # distribute this operation over the hash ring, through a remote queue
+        if exe_uri:
+            msg = { "key": indiv.key, "gen": indiv.gen, "feature_set": loads(indiv.get_json_feature_set()) }
+            lines = post_exe_rest(self.prefix, neighbor_shard_id, exe_uri, "pop/reify", msg)
             return False
         else:
             return self._reify_locally(indiv)
+
+
+    def receive_reify (self, key, gen, feature_set):
+        """test/add a received reify request """
+        indiv = self.indiv_class()
+        indiv.populate(gen, feature_set)
+        self._reify_locally(indiv)
 
 
     def _reify_locally (self, indiv):
@@ -154,7 +202,8 @@ class Population (object):
         """randomly select other individuals and mutate them, to promote genetic diversity"""
         if self._mutation_rate > random():
             indiv.mutate(self, current_gen, self.feature_factory)
-        else:
+        elif len(self._shard.values()) >= 3:
+            # ensure that there are at least three parents
             self.evict(indiv)
 
 
@@ -186,6 +235,8 @@ class Population (object):
             indiv = self.indiv_class()
             indiv.populate(current_gen, self.feature_factory.generate_features())
             self.reify(indiv)
+
+        print "gen", current_gen, self._shard_id, len(self._shard.values())
 
 
     def test_termination (self, current_gen, hist):
@@ -277,7 +328,7 @@ if __name__=='__main__':
     ff = instantiate_class(ff_name)
 
     # initialize a Population of unique Individuals at generation 0
-    pop = Population(Individual(), ff_name, prefix="/tmp/exelixi", hash_ring=None)
+    pop = Population(Individual(), ff_name, prefix="/tmp/exelixi")
     pop.populate(0)
 
     # iterate N times or until a "good enough" solution is found

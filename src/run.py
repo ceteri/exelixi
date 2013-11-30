@@ -27,9 +27,9 @@ from ga import instantiate_class
 class FeatureFactory (object):
     def __init__ (self):
         ## NB: override these GA parameters
-        self.n_pop = 11
-        self.n_gen = 5
-        self.term_limit = 9.0e-03
+        self.n_pop = 23
+        self.n_gen = 10
+        self.term_limit = 5.0e-03
         self.hist_granularity = 3
         self.selection_rate = 0.2
         self.mutation_rate = 0.02

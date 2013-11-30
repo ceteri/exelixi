@@ -17,7 +17,7 @@
 # https://github.com/ceteri/exelixi
 
 
-from ga import instantiate_class, APP_NAME, Individual, Population
+from ga import instantiate_class, post_exe_rest, APP_NAME, Individual, Population
 from gevent import monkey, queue, wsgi, Greenlet
 from hashring import HashRing
 from itertools import chain
@@ -44,7 +44,7 @@ class Worker (object):
         self.is_config = False
         self.prefix = None
         self.shard_id = None
-        self.hash_ring = None
+        self.ring = None
         self.ff_name = None
         self.pop = None
 
@@ -91,8 +91,44 @@ class Worker (object):
             print "%s: configuring shard %s prefix %s" % (APP_NAME, self.shard_id, self.prefix)
 
 
+    def ring_init (self, *args, **kwargs):
+        """initialize the HashRing"""
+        payload = args[0]
+        body = args[1]
+        start_response = args[2]
+
+        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            self.ring = payload["ring"]
+
+            start_response('200 OK', [('Content-Type', 'text/plain')])
+            body.put("Bokay\r\n")
+            body.put(StopIteration)
+            print "%s: setting hash ring %s" % (APP_NAME, self.ring)
+        else:
+            self.bad_auth(payload, body, start_response)
+
+
     def pop_init (self, *args, **kwargs):
-        """initialize a Population of unique Individuals on this shard at generation 0"""
+        """initialize a Population of unique Individuals on this shard"""
+        payload = args[0]
+        body = args[1]
+        start_response = args[2]
+
+        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            self.ff_name = payload["ff_name"]
+            print "%s: initializing population based on %s" % (APP_NAME, self.ff_name)
+            self.pop = Population(Individual(), self.ff_name, self.prefix)
+            self.pop.set_ring(self.shard_id, self.ring)
+
+            start_response('200 OK', [('Content-Type', 'text/plain')])
+            body.put("Bokay\r\n")
+            body.put(StopIteration)
+        else:
+            self.bad_auth(payload, body, start_response)
+
+
+    def pop_gen (self, *args, **kwargs):
+        """create generation 0 of Individuals in this shard of the Population"""
         payload = args[0]
         body = args[1]
         start_response = args[2]
@@ -103,10 +139,9 @@ class Worker (object):
             body.put("Bokay\r\n")
             body.put(StopIteration)
 
-            self.ff_name = payload["ff_name"]
-            print "%s: initializing population based on %s" % (APP_NAME, self.ff_name)
-            self.pop = Population(Individual(), self.ff_name, self.prefix, self.hash_ring)
+            self.pop.set_quiesced(False)
             self.pop.populate(0)
+            self.pop.set_quiesced(True)
         else:
             self.bad_auth(payload, body, start_response)
 
@@ -140,7 +175,9 @@ class Worker (object):
 
             current_gen = payload["current_gen"]
             fitness_cutoff = payload["fitness_cutoff"]
+            self.pop.set_quiesced(False)
             self.pop.next_generation(current_gen, fitness_cutoff)
+            self.pop.set_quiesced(True)
         else:
             self.bad_auth(payload, body, start_response)
 
@@ -158,6 +195,25 @@ class Worker (object):
             body.put(dumps(self.pop.enum(fitness_cutoff)))
             body.put("\r\n")
             body.put(StopIteration)
+        else:
+            self.bad_auth(payload, body, start_response)
+
+
+    def pop_reify (self, *args, **kwargs):
+        """test/add a newly generated Individual into the Population (birth)"""
+        payload = args[0]
+        body = args[1]
+        start_response = args[2]
+
+        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            start_response('200 OK', [('Content-Type', 'text/plain')])
+            body.put("Bokay\r\n")
+            body.put(StopIteration)
+
+            key = payload["key"]
+            gen = payload["gen"]
+            feature_set = payload["feature_set"]
+            self.pop.receive_reify(key, gen, feature_set)
         else:
             self.bad_auth(payload, body, start_response)
 
@@ -203,11 +259,8 @@ class Worker (object):
         elif uri_path == '/ring/init':
             # initialize the HashRing
             payload = loads(env['wsgi.input'].read())
-            print "POST", payload
-            ## TODO
-            start_response('200 OK', [('Content-Type', 'text/plain')])
-            body.put("Bokay\r\n")
-            body.put(StopIteration)
+            gl = Greenlet(self.ring_init, payload, body, start_response)
+            gl.start()
 
         elif uri_path == '/ring/add':
             # add a node to the HashRing
@@ -236,6 +289,12 @@ class Worker (object):
             gl = Greenlet(self.pop_init, payload, body, start_response)
             gl.start()
 
+        elif uri_path == '/pop/gen':
+            # create generation 0 of Individuals in this shard of the Population
+            payload = loads(env['wsgi.input'].read())
+            gl = Greenlet(self.pop_gen, payload, body, start_response)
+            gl.start()
+
         elif uri_path == '/pop/hist':
             # calculate a partial histogram for the fitness distribution
             payload = loads(env['wsgi.input'].read())
@@ -257,11 +316,8 @@ class Worker (object):
         elif uri_path == '/pop/reify':
             # test/add a newly generated Individual into the Population (birth)
             payload = loads(env['wsgi.input'].read())
-            print "POST", payload
-            ## TODO
-            start_response('200 OK', [('Content-Type', 'text/plain')])
-            body.put("Bokay\r\n")
-            body.put(StopIteration)
+            gl = Greenlet(self.pop_reify, payload, body, start_response)
+            gl.start()
 
         elif uri_path == '/pop/evict':
             # remove an Individual from the Population (death)
@@ -341,21 +397,8 @@ class Framework (object):
         json_str = []
 
         for shard_id, (exe_uri, exe_info) in self._shard_assoc.items():
-            msg = base_msg.copy()
-
-            # populate credentials
-            msg["prefix"] = self.prefix
-            msg["shard_id"] = shard_id
-
-            # POST to the REST endpoint
-            req = Request("http://" + exe_uri + "/" + path)
-            req.add_header('Content-Type', 'application/json')
-            print "send", exe_uri, path
-            print dumps(msg)
-
-            # read/collect the response
-            f = urlopen(req, dumps(msg))
-            json_str.append(f.readlines()[0])
+            lines = post_exe_rest(self.prefix, shard_id, exe_uri, path, base_msg)
+            json_str.append(lines[0])
 
         return json_str
 
@@ -375,15 +418,22 @@ class Framework (object):
         # configure the shards
         self._send_exe_rest("shard/config", {})
 
+        ring = { shard_id: exe_uri for shard_id, (exe_uri, exe_info) in self._shard_assoc.items() }
+        self._send_exe_rest("ring/init", { "ring": ring })
+
         # initialize a Population of unique Individuals at generation 0
+        pop = Population(Individual(), self.ff_name, prefix=self.prefix)
         self._send_exe_rest("pop/init", { "ff_name": self.ff_name })
-        pop = Population(Individual(), self.ff_name, prefix=self.prefix, hash_ring=None)
+        self._send_exe_rest("pop/gen", {})
 
         # iterate N times or until a "good enough" solution is found
         while self.current_gen < self.n_gen:
+            ## NB: TODO test whether all shards have quiesced
+
             hist = {}
 
             for shard_hist_json in self._send_exe_rest("pop/hist", {}):
+                print shard_hist_json
                 self.aggregate_hist(hist, loads(shard_hist_json))
 
             if pop.test_termination(self.current_gen, hist):
