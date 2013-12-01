@@ -73,6 +73,7 @@ class Population (object):
         self._hash_ring = None
 
         self.n_pop = self.feature_factory.n_pop
+        self._total_indiv = 0
         self._term_limit = self.feature_factory.term_limit
         self._hist_granularity = self.feature_factory.hist_granularity
 
@@ -136,6 +137,7 @@ class Population (object):
         """test/add a newly generated Individual into the Population locally (birth)"""
         if not indiv.key in self._bf:
             self._bf.update([indiv.key])
+            self._total_indiv += 1
 
             # potentially the most expensive operation, deferred until remote reification
             indiv.get_fitness(self.feature_factory, force=True)
@@ -228,7 +230,7 @@ class Population (object):
             indiv.populate(current_gen, self.feature_factory.generate_features())
             self.reify(indiv)
 
-        print "gen", current_gen, self._shard_id, len(self._shard.values())
+        print "gen", current_gen, self._shard_id, len(self._shard.values()), self._total_indiv
 
 
     def test_termination (self, current_gen, hist):

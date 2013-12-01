@@ -90,7 +90,7 @@ if __name__=='__main__':
         print get_slave_list(args.nodes[0])
 
     elif args.master:
-        print "%s running a Framework atop an Apache Mesos cluster" % (APP_NAME),
+        print "%s: running a Framework atop an Apache Mesos cluster" % (APP_NAME),
         print "with master %s and %d executor(s)" % (args.master[0], args.executors)
 
         from sched import MesosScheduler
@@ -103,7 +103,7 @@ if __name__=='__main__':
         MesosScheduler.stop_framework(driver)
 
     elif args.slaves:
-        print "%s running a Framework in standalone mode" % (APP_NAME),
+        print "%s: running a Framework in standalone mode" % (APP_NAME),
         print "with slave(s) %s" % (args.slaves)
 
         ## run Framework orchestration via REST endpoints on the Executors
@@ -112,7 +112,7 @@ if __name__=='__main__':
         fra.orchestrate()
 
     elif args.port:
-        print "%s running an Executor service on port %s" % (APP_NAME, args.port[0])
+        print "%s: running an Executor service on port %s" % (APP_NAME, args.port[0])
 
         # launch service
         try:
@@ -122,7 +122,7 @@ if __name__=='__main__':
             pass
 
     else:
-        print "%s running an Executor atop an Apache Mesos cluster" % (APP_NAME)
+        print "%s: running an Executor atop an Apache Mesos cluster" % (APP_NAME)
 
         from sched import MesosExecutor
 

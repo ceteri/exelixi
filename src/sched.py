@@ -17,11 +17,13 @@
 # https://github.com/ceteri/exelixi
 
 
+from collections import OrderedDict
 from json import dumps, loads
 from service import ExecutorInfo, Framework, Worker
 from threading import Thread
 from uuid import uuid1
 import os
+import psutil
 import socket
 import subprocess
 import sys
@@ -31,13 +33,43 @@ import mesos_pb2
 
 
 ######################################################################
+## utility methods
+
+def get_telemetry ():
+    """get system resource telemetry on a Mesos slave via psutil"""
+    telemetry = OrderedDict()
+
+    telemetry["boot_time"] = psutil.get_boot_time()
+
+    telemetry["ip_addr"] = socket.gethostbyname(socket.gethostname())
+
+    telemetry["mem_free"] =  psutil.virtual_memory().free
+
+    telemetry["cpu_num"] = psutil.NUM_CPUS
+
+    x = psutil.cpu_times_percent()
+    telemetry["cpu_times"] = OrderedDict([ ("user", x.user), ("system", x.system), ("idle", x.idle) ])
+
+    x = psutil.disk_usage('/tmp')
+    telemetry["disk_usage"] = OrderedDict([ ("free", x.free), ("percent", x.percent) ])
+
+    x = psutil.disk_io_counters()
+    telemetry["disk_io"] = OrderedDict([ ("read_count", x.read_count), ("write_count", x.write_count), ("read_bytes", x.read_bytes), ("write_bytes", x.write_bytes), ("read_time", x.read_time), ("write_time", x.write_time) ])
+
+    x = psutil.network_io_counters()
+    telemetry["network_io"] = OrderedDict([ ("bytes_sent", x.bytes_sent), ("bytes_recv", x.bytes_recv), ("packets_sent", x.packets_sent), ("packets_recv", x.packets_recv), ("errin", x.errin), ("errout", x.errout), ("dropin", x.dropin), ("dropout", x.dropout) ])
+
+    return telemetry
+
+
+######################################################################
 ## class definitions
 
 
 class MesosScheduler (mesos.Scheduler):
     # https://github.com/apache/mesos/blob/master/src/python/src/mesos.py
 
-    ## NB: these resource allocations suffice for now, but could be adjusted/dynamic
+    ## NB: TODO resource allocations suffice for now, but should be dynamic
     TASK_CPUS = 1
     TASK_MEM = 32
 
@@ -50,7 +82,7 @@ class MesosScheduler (mesos.Scheduler):
         self.messagesSent = 0
         self.messagesReceived = 0
 
-        ## NB: customized for Exelixi
+        # these protected members have been customized for Exelixi
         self._executors = {}
         self._exe_path = exe_path
         self._n_exe = n_exe
@@ -144,7 +176,6 @@ class MesosScheduler (mesos.Scheduler):
         """
 
         print "task %s is in state %d" % (update.task_id.value, update.state)
-        print "task update:", repr(str(update.data))
 
         if update.state == mesos_pb2.TASK_FINISHED:
             self.tasksFinished += 1
@@ -152,16 +183,22 @@ class MesosScheduler (mesos.Scheduler):
             slave_id, executor_id = self.taskData[update.task_id.value]
             self.messagesSent += 1
 
-            ## update the ExecutorInfo with details from the initial discovery task
+            # update the ExecutorInfo with details from the initial discovery task
+            telemetry = loads(str(update.data))
+
+            print "resource telemetry: slave %s, executor %s" % (slave_id, executor_id),
+            print dumps(telemetry, indent=4)
+
             exe = self.lookupExecutor(executor_id)
-            exe.ip_addr = str(update.data)
-            ## NB: TODO make the port variable?
+            exe.ip_addr = telemetry["ip_addr"]
+
+            ## NB: TODO make the Executor service port variable?
             exe.port = Worker.DEFAULT_PORT
 
             if self.tasksFinished == self._n_exe:
-                print "all executors launched, waiting to collect framework messages"
+                print "all executors launched and init tasks completed"
 
-            ## NB: integrate service launch here
+            ## NB: TODO integrate service launch from tarball instead
             message = str(dumps([ self._exe_path, "-p", exe.port ]))
             driver.sendFrameworkMessage(executor_id, slave_id, message)
 
@@ -189,12 +226,12 @@ class MesosScheduler (mesos.Scheduler):
             exe_info = self._executors.values()
             exe_list = [ exe.get_exe_uri() for exe in exe_info ]
 
-            ## run Framework orchestration via REST endpoints on the Executors
+            # run Framework orchestration via REST endpoints on the Executors
             fra = Framework(self._ff_name, self._prefix)
             fra.set_exe_list(exe_list, exe_info)
             fra.orchestrate()
 
-            ## after the end of an algorithm run, shutdown the Executors
+            # shutdown the Executors after the end of an algorithm run
             driver.stop()
 
 
@@ -282,13 +319,12 @@ class MesosExecutor (mesos.Executor):
             print update.data
             driver.sendStatusUpdate(update)
 
-            ## NB: resolve internal IP address, test port availability...
-            ip_addr = socket.gethostbyname(socket.gethostname())
-
             update = mesos_pb2.TaskStatus()
             update.task_id.value = task.task_id.value
             update.state = mesos_pb2.TASK_FINISHED
-            update.data = str(ip_addr)
+
+            ## NB: TODO test port availability...
+            update.data = str(get_telemetry())
 
             print update.data
             driver.sendStatusUpdate(update)

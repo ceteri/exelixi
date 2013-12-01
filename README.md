@@ -20,7 +20,7 @@ Otherwise, to run at scale, the following steps will help you get <b>Exelixi</b>
 First, launch an [Apache Mesos] cluster.
 The following instructions are based on using the [Elastic Mesos] service,
 which uses Ubuntu Linux servers running on [Amazon AWS].
-However, the basic outline of steps should apply in the general case.
+Even so, the basic outline of steps shown here apply in general.
 
 Once you have confirmation that your cluster is running --
 [Elastic Mesos] sends you an email messages with a list of masters and slaves --
