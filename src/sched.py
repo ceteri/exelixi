@@ -39,15 +39,13 @@ def get_telemetry ():
     """get system resource telemetry on a Mesos slave via psutil"""
     telemetry = OrderedDict()
 
-    telemetry["boot_time"] = psutil.get_boot_time()
-
     telemetry["ip_addr"] = socket.gethostbyname(socket.gethostname())
 
     telemetry["mem_free"] =  psutil.virtual_memory().free
 
     telemetry["cpu_num"] = psutil.NUM_CPUS
 
-    x = psutil.cpu_times_percent()
+    x = psutil.cpu_times()
     telemetry["cpu_times"] = OrderedDict([ ("user", x.user), ("system", x.system), ("idle", x.idle) ])
 
     x = psutil.disk_usage('/tmp')

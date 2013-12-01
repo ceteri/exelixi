@@ -91,7 +91,7 @@ if __name__=='__main__':
 
     elif args.master:
         print "%s: running a Framework atop an Apache Mesos cluster" % (APP_NAME),
-        print "with master %s and %d executor(s)" % (args.master[0], args.executors)
+        print "with master %s and %d executor(s)" % (args.master[0], int(args.executors[0]))
 
         from sched import MesosScheduler
 
@@ -99,7 +99,7 @@ if __name__=='__main__':
         ## NB: TODO make path relative
         exe_path = "/home/ubuntu/exelixi-master/src/exelixi.py"
 
-        driver = MesosScheduler.start_framework(master_uri, exe_path, args.executors, args.feature, args.prefix)
+        driver = MesosScheduler.start_framework(master_uri, exe_path, int(args.executors[0]), args.feature, args.prefix)
         MesosScheduler.stop_framework(driver)
 
     elif args.slaves:
