@@ -322,7 +322,7 @@ class MesosExecutor (mesos.Executor):
             update.state = mesos_pb2.TASK_FINISHED
 
             ## NB: TODO test port availability...
-            update.data = str(get_telemetry())
+            update.data = str(dumps(get_telemetry()))
 
             print update.data
             driver.sendStatusUpdate(update)
