@@ -123,7 +123,7 @@ if __name__=='__main__':
 
     if args.nodes:
         # query and report the slave list, then exit
-        report_slave_list(args.nodes[0])
+        report_slave_list(args.nodes)
         sys.exit(0)
 
     # report settings for optional features

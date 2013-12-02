@@ -17,6 +17,7 @@
 # https://github.com/ceteri/exelixi
 
 
+from exelixi import get_telemetry
 from json import dumps, loads
 from service import ExecutorInfo, Framework, Worker
 from threading import Thread
