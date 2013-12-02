@@ -27,6 +27,7 @@ import psutil
 import socket
 import subprocess
 import sys
+import time
 
 import mesos
 import mesos_pb2
@@ -184,10 +185,10 @@ class MesosScheduler (mesos.Scheduler):
             # update the ExecutorInfo with details from the initial discovery task
             telemetry = loads(str(update.data))
 
-            print "resource telemetry: slave %s, executor %s" % (slave_id, executor_id),
-            print dumps(telemetry, indent=4)
+            print "resource telemetry: slave %s, executor %s" % (slave_id.value, executor_id.value),
+            print str(update.data)
 
-            exe = self.lookupExecutor(executor_id)
+            exe = self.lookup_executor(slave_id.value, executor_id.value)
             exe.ip_addr = telemetry["ip_addr"]
 
             ## NB: TODO make the Executor service port variable?
@@ -208,9 +209,10 @@ class MesosScheduler (mesos.Scheduler):
         retransmitted in any reliable fashion.
         """
 
-        print "executor %s slave %s" % (executorId, slaveId)
-        print "executor message received:", repr(str(message))
         self.messagesReceived += 1
+
+        print "framework message: slave %s executor %s" % (slaveId.value, executorId.value)
+        print "executor message %d received: %s" % (self.messagesReceived, str(message))
 
         if self.messagesReceived == self._n_exe:
             if self.messagesReceived != self.messagesSent:
@@ -227,16 +229,18 @@ class MesosScheduler (mesos.Scheduler):
             # run Framework orchestration via REST endpoints on the Executors
             fra = Framework(self._ff_name, self._prefix)
             fra.set_exe_list(exe_list, exe_info)
+
+            time.sleep(1)
             fra.orchestrate()
 
             # shutdown the Executors after the end of an algorithm run
             driver.stop()
 
 
-    def lookupExecutor (self, executor_id):
-        """lookup the Executor based on a executor_id"""
+    def lookup_executor (self, slave_id, executor_id):
+        """lookup the Executor based on IDs"""
         for exe in self._executors.values():
-            if exe.executor_id == executor_id:
+            if exe.slave_id == slave_id:
                 return exe
 
 
@@ -322,7 +326,7 @@ class MesosExecutor (mesos.Executor):
             update.state = mesos_pb2.TASK_FINISHED
 
             ## NB: TODO test port availability...
-            update.data = str(dumps(get_telemetry()))
+            update.data = str(dumps(get_telemetry(), indent=4))
 
             print update.data
             driver.sendStatusUpdate(update)
