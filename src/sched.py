@@ -195,7 +195,7 @@ class MesosScheduler (mesos.Scheduler):
             exe.port = Worker.DEFAULT_PORT
 
             if self.tasksFinished == self._n_exe:
-                print "all executors launched and init tasks completed"
+                print "init tasks completed"
 
             ## NB: TODO integrate service launch from tarball instead
             message = str(dumps([ self._exe_path, "-p", exe.port ]))
