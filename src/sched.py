@@ -17,14 +17,11 @@
 # https://github.com/ceteri/exelixi
 
 
-from collections import OrderedDict
 from json import dumps, loads
 from service import ExecutorInfo, Framework, Worker
 from threading import Thread
 from uuid import uuid1
 import os
-import psutil
-import socket
 import subprocess
 import sys
 import time
@@ -34,46 +31,13 @@ import mesos_pb2
 
 
 ######################################################################
-## utility methods
-
-def get_telemetry ():
-    """get system resource telemetry on a Mesos slave via psutil"""
-    telemetry = OrderedDict()
-
-    telemetry["ip_addr"] = socket.gethostbyname(socket.gethostname())
-
-    telemetry["mem_free"] =  psutil.virtual_memory().free
-
-    telemetry["cpu_num"] = psutil.NUM_CPUS
-
-    x = psutil.cpu_times()
-    telemetry["cpu_times"] = OrderedDict([ ("user", x.user), ("system", x.system), ("idle", x.idle) ])
-
-    x = psutil.disk_usage('/tmp')
-    telemetry["disk_usage"] = OrderedDict([ ("free", x.free), ("percent", x.percent) ])
-
-    x = psutil.disk_io_counters()
-    telemetry["disk_io"] = OrderedDict([ ("read_count", x.read_count), ("write_count", x.write_count), ("read_bytes", x.read_bytes), ("write_bytes", x.write_bytes), ("read_time", x.read_time), ("write_time", x.write_time) ])
-
-    x = psutil.network_io_counters()
-    telemetry["network_io"] = OrderedDict([ ("bytes_sent", x.bytes_sent), ("bytes_recv", x.bytes_recv), ("packets_sent", x.packets_sent), ("packets_recv", x.packets_recv), ("errin", x.errin), ("errout", x.errout), ("dropin", x.dropin), ("dropout", x.dropout) ])
-
-    return telemetry
-
-
-######################################################################
 ## class definitions
 
 
 class MesosScheduler (mesos.Scheduler):
     # https://github.com/apache/mesos/blob/master/src/python/src/mesos.py
 
-    ## NB: TODO resource allocations suffice for now, but should be dynamic
-    TASK_CPUS = 1
-    TASK_MEM = 32
-
-
-    def __init__ (self, executor, exe_path, n_exe, ff_name, prefix):
+    def __init__ (self, executor, exe_path, n_exe, ff_name, prefix, cpu_alloc, mem_alloc):
         self.executor = executor
         self.taskData = {}
         self.tasksLaunched = 0
@@ -87,6 +51,8 @@ class MesosScheduler (mesos.Scheduler):
         self._n_exe = n_exe
         self._ff_name = ff_name
         self._prefix = prefix
+        self._cpu_alloc = cpu_alloc
+        self._mem_alloc = mem_alloc
 
 
     def registered (self, driver, frameworkId, masterInfo):
@@ -141,12 +107,12 @@ class MesosScheduler (mesos.Scheduler):
                 cpus = task.resources.add()
                 cpus.name = "cpus"
                 cpus.type = mesos_pb2.Value.SCALAR
-                cpus.scalar.value = MesosScheduler.TASK_CPUS
+                cpus.scalar.value = self._cpu_alloc
 
                 mem = task.resources.add()
                 mem.name = "mem"
                 mem.type = mesos_pb2.Value.SCALAR
-                mem.scalar.value = MesosScheduler.TASK_MEM
+                mem.scalar.value = self._mem_alloc
 
                 tasks.append(task)
                 self.taskData[task.task_id.value] = (offer.slave_id, task.executor.executor_id)
@@ -245,13 +211,13 @@ class MesosScheduler (mesos.Scheduler):
 
 
     @staticmethod
-    def start_framework (master_uri, exe_path, n_exe, ff_name, prefix):
+    def start_framework (master_uri, exe_path, n_exe, ff_name, prefix, cpu_alloc, mem_alloc):
         # initialize an executor
         executor = mesos_pb2.ExecutorInfo()
         executor.executor_id.value = uuid1().hex
         executor.command.value = os.path.abspath(exe_path)
         executor.name = "Exelixi Executor"
-        executor.source = "GitHub"
+        executor.source = "per-job build"
 
         # initialize the framework
         framework = mesos_pb2.FrameworkInfo()
@@ -263,7 +229,7 @@ class MesosScheduler (mesos.Scheduler):
             framework.checkpoint = True
     
         ## NB: create a MesosScheduler and capture the command line options
-        sched = MesosScheduler(executor, exe_path, n_exe, ff_name, prefix)
+        sched = MesosScheduler(executor, exe_path, n_exe, ff_name, prefix, cpu_alloc, mem_alloc)
 
         # initialize a driver
         if os.getenv("MESOS_AUTHENTICATE"):
