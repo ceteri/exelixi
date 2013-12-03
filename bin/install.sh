@@ -2,6 +2,19 @@
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
+# build a tarball/container for the Executor
+
+rm -rf /tmp/exelixi.tgz
+tar cvzf /tmp/exelixi.tgz ../exelixi-master/bin ../exelixi-master/src
+
+# distribute tarball/container to the Mesos slaves via HDFS
+
+hadoop fs -rm -f -R /exelixi
+hadoop fs -mkdir /exelixi
+hadoop fs -put /tmp/exelixi.tgz /exelixi
+
+# run installer on each of the Mesos slaves
+
 printf "UserKnownHostsFile /dev/null\nStrictHostKeyChecking no\n" >> ~/.ssh/config
 
 while read slave

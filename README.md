@@ -39,7 +39,11 @@ On the master, download the <code>master</code> branch of the <b>Exelixi</b> cod
     cd exelixi-master ; \
     ./bin/local_install.sh
 
-Next, run the installation commands on each of the slaves:
+If you've customized the code by forking your own GitHub code repo, then substitute that download URL instead.
+Alternatively, if you've customized by subclassing the <code>run.FeatureFactory</code> default [GA],
+then place that Python source file into the <code>src/</code> subdirectory.
+
+Next, run the installation command on the master, to set up each of the slaves:
 
     ./src/exelixi.py -n localhost:5050 | ./bin/install.sh
 
@@ -48,7 +52,7 @@ In the following case, it runs on two slave nodes:
 
     ./src/exelixi.py -m localhost:5050 -e 2
 
-If everything gets set up successfully, the log should conclude with a final line:
+Once everything has been set up successfully, the log file in <code>exelixi.log</code> will show with a line:
 
     all executors launched and init tasks completed
 

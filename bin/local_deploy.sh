@@ -1,6 +1,6 @@
 #!/bin/bash -x
 
 echo "deploying Exelixi..."
-rm -rf master.zip exelixi-master
-wget https://github.com/ceteri/exelixi/archive/master.zip
-unzip master.zip
+rm -rf exelixi.tgz exelixi-master
+hadoop fs -get /exelixi/exelixi.tgz
+tar xvzf exelixi.tgz
