@@ -43,7 +43,7 @@ class Worker (object):
 
     def __init__ (self, port=DEFAULT_PORT):
         monkey.patch_all()
-        self.server = wsgi.WSGIServer(('', int(port)), self._response_handler)
+        self.server = wsgi.WSGIServer(('', int(port)), self._response_handler, log_output=False)
         self.is_config = False
         self.prefix = None
         self.shard_id = None
