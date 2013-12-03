@@ -236,7 +236,7 @@ class Population (object):
             indiv.populate(current_gen, self.feature_factory.generate_features())
             self.reify(indiv)
 
-        logging.debug("gen: %d shard %s size %d total %d", current_gen, self._shard_id, len(self._shard.values()), self._total_indiv)
+        logging.info("gen: %d shard %s size %d total %d", current_gen, self._shard_id, len(self._shard.values()), self._total_indiv)
 
 
     def test_termination (self, current_gen, hist):
