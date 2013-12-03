@@ -52,7 +52,7 @@ In the following case, it runs on two slave nodes:
 
     ./src/exelixi.py -m localhost:5050 -e 2
 
-Once everything has been set up successfully, the log file in <code>exelixi.log</code> will show with a line:
+Once everything has been set up successfully, the log file in <code>exelixi.log</code> will show a line:
 
     all executors launched and init tasks completed
 
