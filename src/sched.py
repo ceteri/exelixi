@@ -19,7 +19,7 @@
 
 from exelixi import get_telemetry
 from json import dumps, loads
-from service import ExecutorInfo, Framework, Worker
+from service import Framework, SlaveInfo, Worker
 from threading import Thread
 from uuid import uuid1
 import logging
@@ -84,14 +84,14 @@ class MesosScheduler (mesos.Scheduler):
         saying as much).
         """
 
-        logging.debug("Mesos Scheduler: got %d resource offers", len(offers))
+        logging.debug("Mesos Scheduler: received %d resource offers", len(offers))
 
         for offer in offers:
             tasks = []
-            logging.debug("Mesos Scheduler: got resource offer %s", offer.id.value)
+            logging.debug("Mesos Scheduler: received resource offer %s", offer.id.value)
 
             ## NB: currently we force 'offer.hostname' to be unique per Executor...
-            ## could be changed, but we'd need to juggle port numbers
+            ## could be changed, but we'd need to juggle the service port numbers
 
             if self.tasksLaunched < self._n_exe and offer.hostname not in self._executors:
                 tid = self.tasksLaunched
@@ -117,13 +117,13 @@ class MesosScheduler (mesos.Scheduler):
                 tasks.append(task)
                 self.taskData[task.task_id.value] = (offer.slave_id, task.executor.executor_id)
 
-                # record/report slave state
-                self._executors[offer.hostname] = ExecutorInfo(offer, task)
+                # record and report the Mesos slave node's telemetry and state
+                self._executors[offer.hostname] = SlaveInfo(offer, task)
 
                 for exe in self._executors.values():
                     logging.debug(exe.report())
 
-            # finally, have the driver launch the task
+            # request the driver to launch the task
             driver.launchTasks(offer.id, tasks)
 
 
@@ -148,20 +148,22 @@ class MesosScheduler (mesos.Scheduler):
             slave_id, executor_id = self.taskData[update.task_id.value]
             self.messagesSent += 1
 
-            # update the ExecutorInfo with details from the initial discovery task
+            # update SlaveInfo with telemetry from initial discovery task
             telemetry = loads(str(update.data))
-            logging.info("Mesos Slave: telemetry slave %s, executor %s\n%s", slave_id.value, executor_id.value, str(update.data))
+            logging.info("Mesos Slave: telemetry from slave %s, executor %s\n%s", slave_id.value, executor_id.value, str(update.data))
 
             exe = self.lookup_executor(slave_id.value, executor_id.value)
             exe.ip_addr = telemetry["ip_addr"]
 
-            ## NB: TODO make the Executor service port variable?
+            ## NB: TODO make the service port a parameter
             exe.port = Worker.DEFAULT_PORT
 
             if self.tasksFinished == self._n_exe:
                 logging.info("Mesos Scheduler: %d init tasks completed", self._n_exe)
 
-            ## NB: TODO integrate service launch from tarball instead
+            ## NB: TODO launch service from tarball/container instead
+
+            # request to launch service as a child process
             message = str(dumps([ self._exe_path, "-p", exe.port ]))
             driver.sendFrameworkMessage(executor_id, slave_id, message)
 
@@ -226,7 +228,7 @@ class MesosScheduler (mesos.Scheduler):
             logging.debug("Mesos Scheduler: enabling checkpoint for the framework")
             framework.checkpoint = True
     
-        ## NB: create a MesosScheduler and capture the command line options
+        # create a scheduler and capture the command line options
         sched = MesosScheduler(executor, exe_path, n_exe, ff_name, prefix, cpu_alloc, mem_alloc)
 
         # initialize a driver
@@ -272,8 +274,8 @@ class MesosExecutor (mesos.Executor):
         this executor until this callback has returned.
         """
 
-        # create a thread to run the task: tasks should always be run
-        # in new threads or processes, rather than inside launchTask
+        ## NB: the following code runs on the Mesos slave (source of the resource offer)
+
         def run_task():
             logging.debug("Mesos Executor: requested task %s", task.task_id.value)
 
@@ -292,10 +294,17 @@ class MesosExecutor (mesos.Executor):
             ## NB: TODO test port availability...
             update.data = str(dumps(get_telemetry(), indent=4))
 
+            ## NB: TODO download tarball/container for service launch
+
+            # notify scheduler: ready to launch service
             logging.debug(update.data)
             driver.sendStatusUpdate(update)
 
-        # now run the requested task
+        # now create a thread to run the requested task: run tasks in
+        # new threads or processes, rather than inside launchTask...
+        # NB: gevent/coroutines/Greenlets conflict here... must run
+        # those in a child shell process
+
         thread = Thread(target=run_task)
         thread.start()
 
@@ -308,10 +317,10 @@ class MesosExecutor (mesos.Executor):
         """
 
         # launch service
-        logging.debug("Mesos Executor: launch service: %s", message)
+        logging.info("Mesos Executor: service launched: %s", message)
         subprocess.Popen(loads(message))
 
-        # send the message back to the scheduler
+        # notify scheduler: service was successfully launched
         driver.sendFrameworkMessage(str("service launched"))
 
 

@@ -557,7 +557,7 @@ class Framework (object):
         self._send_exe_rest("stop", {})
 
 
-class ExecutorInfo (object):
+class SlaveInfo (object):
     def __init__ (self, offer, task):
         self.host = offer.hostname
         self.slave_id = offer.slave_id.value
@@ -572,7 +572,7 @@ class ExecutorInfo (object):
 
 
     def report (self):
-        """print a report, for logging/debugging mostly"""
+        """report the slave telemetry + state"""
         return "host %s slave %s task %s exe %s ip %s:%s" % (self.host, self.slave_id, str(self.task_id), self.executor_id, self.ip_addr, self.port)
 
 
