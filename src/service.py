@@ -24,8 +24,9 @@ from gevent.queue import JoinableQueue, Queue
 from hashring import HashRing
 from itertools import chain
 from json import dumps, loads
-from urllib2 import Request, urlopen
+from urllib2 import urlopen, Request
 from uuid import uuid1
+import logging
 import sys
 
 
@@ -64,12 +65,21 @@ class Worker (object):
         body = args[1]
 
         if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
-            print "%s: executor service stopping... you can safely ignore any exceptions that follow." % (APP_NAME)
+            logging.info("executor service stopping... you can safely ignore any exceptions that follow")
             self.server.stop()
         else:
             # NB: you have dialed a wrong number!
             # returns incorrect response in this case, to avoid exception
-            print "%s: incorrect shard %s prefix %s" % (APP_NAME, payload["shard_id"], payload["prefix"])
+            logging.error("incorrect shard %s prefix %s", payload["shard_id"], payload["prefix"])
+
+
+    def _bad_auth (self, payload, body, start_response):
+        """Framework did not provide the correct credentials to access this shard"""
+        start_response('403 Forbidden', [('Content-Type', 'text/plain')])
+        body.put('Forbidden\r\n')
+        body.put(StopIteration)
+
+        logging.error("incorrect shard %s prefix %s", payload["shard_id"], payload["prefix"])
 
 
     def reify_consumer (self):
@@ -95,10 +105,11 @@ class Worker (object):
 
         if self.is_config:
             # somebody contact security...
-            start_response('404 Not Found', [('Content-Type', 'text/plain')])
-            body.put("Denied, executor already in a configured state\r\n")
+            start_response('403 Forbidden', [('Content-Type', 'text/plain')])
+            body.put("Forbidden, executor already in a configured state\r\n")
             body.put(StopIteration)
-            print "%s: denied configuring shard %s prefix %s" % (APP_NAME, self.shard_id, self.prefix)
+
+            logging.warning("denied configuring shard %s prefix %s", self.shard_id, self.prefix)
         else:
             self.is_config = True
             self.prefix = payload["prefix"]
@@ -107,7 +118,8 @@ class Worker (object):
             start_response('200 OK', [('Content-Type', 'text/plain')])
             body.put("Bokay\r\n")
             body.put(StopIteration)
-            print "%s: configuring shard %s prefix %s" % (APP_NAME, self.shard_id, self.prefix)
+
+            logging.info("configuring shard %s prefix %s", self.shard_id, self.prefix)
 
 
     def ring_init (self, *args, **kwargs):
@@ -122,9 +134,10 @@ class Worker (object):
             start_response('200 OK', [('Content-Type', 'text/plain')])
             body.put("Bokay\r\n")
             body.put(StopIteration)
-            print "%s: setting hash ring %s" % (APP_NAME, self.ring)
+
+            logging.info("setting hash ring %s", self.ring)
         else:
-            self.bad_auth(payload, body, start_response)
+            self._bad_auth(payload, body, start_response)
 
 
     def pop_init (self, *args, **kwargs):
@@ -135,7 +148,8 @@ class Worker (object):
 
         if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
             self.ff_name = payload["ff_name"]
-            print "%s: initializing population based on %s" % (APP_NAME, self.ff_name)
+            logging.info("initializing population based on %s", self.ff_name)
+
             self.pop = Population(Individual(), self.ff_name, self.prefix)
             self.pop.set_ring(self.shard_id, self.ring)
 
@@ -146,7 +160,7 @@ class Worker (object):
             body.put("Bokay\r\n")
             body.put(StopIteration)
         else:
-            self.bad_auth(payload, body, start_response)
+            self._bad_auth(payload, body, start_response)
 
 
     def pop_gen (self, *args, **kwargs):
@@ -168,7 +182,7 @@ class Worker (object):
             self.evt.set()
             self.evt = None
         else:
-            self.bad_auth(payload, body, start_response)
+            self._bad_auth(payload, body, start_response)
 
 
     def pop_wait (self, *args, **kwargs):
@@ -186,7 +200,7 @@ class Worker (object):
             body.put("Bokay\r\n")
             body.put(StopIteration)
         else:
-            self.bad_auth(payload, body, start_response)
+            self._bad_auth(payload, body, start_response)
 
 
     def pop_join (self, *args, **kwargs):
@@ -203,7 +217,7 @@ class Worker (object):
             body.put("Bokay\r\n")
             body.put(StopIteration)
         else:
-            self.bad_auth(payload, body, start_response)
+            self._bad_auth(payload, body, start_response)
 
 
     def pop_hist (self, *args, **kwargs):
@@ -218,7 +232,7 @@ class Worker (object):
             body.put("\r\n")
             body.put(StopIteration)
         else:
-            self.bad_auth(payload, body, start_response)
+            self._bad_auth(payload, body, start_response)
 
 
     def pop_next (self, *args, **kwargs):
@@ -242,7 +256,7 @@ class Worker (object):
             self.evt.set()
             self.evt = None
         else:
-            self.bad_auth(payload, body, start_response)
+            self._bad_auth(payload, body, start_response)
 
 
     def pop_enum (self, *args, **kwargs):
@@ -259,7 +273,7 @@ class Worker (object):
             body.put("\r\n")
             body.put(StopIteration)
         else:
-            self.bad_auth(payload, body, start_response)
+            self._bad_auth(payload, body, start_response)
 
 
     def pop_reify (self, *args, **kwargs):
@@ -275,7 +289,7 @@ class Worker (object):
             body.put("Bokay\r\n")
             body.put(StopIteration)
         else:
-            self.bad_auth(payload, body, start_response)
+            self._bad_auth(payload, body, start_response)
 
 
     def _response_handler (self, env, start_response):
@@ -433,13 +447,14 @@ class Framework (object):
         # system parameters, for representing operational state
         self.ff_name = ff_name
         self.feature_factory = instantiate_class(ff_name)
+
         self.uuid = uuid1().hex
         self.prefix = prefix + "/" + self.uuid
+        logging.info("prefix: %s", self.prefix)
+
         self.n_gen = self.feature_factory.n_gen
         self.current_gen = 0
-
         self._shard_assoc = None
-        print self.prefix
 
 
     def _gen_shard_id (self, i, n):
@@ -461,7 +476,7 @@ class Framework (object):
             else:
                 self._shard_assoc[shard_id] = [exe_list[i], exe_info[i]]
 
-        print self._shard_assoc
+        logging.info("set executor list: %s", str(self._shard_assoc))
 
 
     def _send_exe_rest (self, path, base_msg):
@@ -511,7 +526,8 @@ class Framework (object):
             hist = {}
 
             for shard_hist_json in self._send_exe_rest("pop/hist", {}):
-                print shard_hist_json
+                ## NB: TODO aggregate total_indiv from the shards
+                logging.debug(shard_hist_json)
                 self.aggregate_hist(hist, loads(shard_hist_json))
 
             # test for the terminating condition
@@ -534,6 +550,7 @@ class Framework (object):
         results.sort(reverse=True)
 
         for x in results:
+            # print results to stdout
             print "\t".join(x)
 
         # shutdown

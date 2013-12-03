@@ -19,6 +19,7 @@
 
 from random import randint
 from ga import instantiate_class
+import logging
 
 
 ######################################################################
@@ -84,7 +85,7 @@ class FeatureFactory (object):
         mse = sum([ count * (1.0 - bin) ** 2.0 for bin, count in hist.items() ]) / float(n_indiv)
 
         # report the progress for one generation
-        print "test", current_gen, n_indiv, "%.2e" % mse, filter(lambda x: x[1] > 0, hist.items())
+        logging.debug("test: gen %d size %d mse %.2e %s", current_gen, n_indiv, mse, filter(lambda x: x[1] > 0, hist.items()))
 
         # stop when a "good enough" solution is found
         return mse <= term_limit

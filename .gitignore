@@ -1,5 +1,6 @@
 **~
 *.py[cod]
+exelixi.log
 
 # C extensions
 *.so

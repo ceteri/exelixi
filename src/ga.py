@@ -24,7 +24,8 @@ from hashring import HashRing
 from importlib import import_module
 from json import dumps, loads
 from random import random, sample
-from urllib2 import Request, urlopen
+from urllib2 import urlopen, Request, URLError
+import logging
 import sys
 
 
@@ -49,14 +50,20 @@ def post_exe_rest (prefix, shard_id, exe_uri, path, base_msg):
     msg["shard_id"] = shard_id
 
     # POST to the REST endpoint
-    req = Request("http://" + exe_uri + "/" + path)
+    uri = "http://" + exe_uri + "/" + path
+    req = Request(uri)
     req.add_header('Content-Type', 'application/json')
-    print "send", exe_uri, path
-    print dumps(msg)
+
+    logging.debug("send %s %s", exe_uri, path)
+    logging.debug(dumps(msg))
 
     # read/collect the response
-    f = urlopen(req, dumps(msg))
-    return f.readlines()
+    try:
+        f = urlopen(req, dumps(msg))
+        return f.readlines()
+    except URLError as e:
+        logging.critical("could not reach REST endpoint %s error: %s", uri, str(e.reason))
+        raise
 
 
 ######################################################################
@@ -169,7 +176,7 @@ class Population (object):
         """determine fitness cutoff (bin lower bounds) for the parent selection filter"""
         h = hist.items()
         h.sort(reverse=True)
-        print "fit", h
+        logging.debug("fit: %s", h)
 
         n_indiv = sum([ count for bin, count in h ])
         part_sum = 0
@@ -183,7 +190,7 @@ class Population (object):
             percentile = part_sum / float(n_indiv)
             break_next = percentile >= self._selection_rate
 
-        print "fit", percentile, part_sum, n_indiv, bin
+        logging.debug("fit: percentile %f part_sum %d n_indiv %d bin %f", percentile, part_sum, n_indiv, bin)
         return bin
 
 
@@ -223,14 +230,13 @@ class Population (object):
             success = f.breed(self, current_gen, m, self.feature_factory)
 
         # backfill to avoid the dreaded Population collapse
-
         for _ in xrange(self.n_pop - len(self._shard.values())):
             # constructor pattern
             indiv = self.indiv_class()
             indiv.populate(current_gen, self.feature_factory.generate_features())
             self.reify(indiv)
 
-        print "gen", current_gen, self._shard_id, len(self._shard.values()), self._total_indiv
+        logging.debug("gen: %d shard %s size %d total %d", current_gen, self._shard_id, len(self._shard.values()), self._total_indiv)
 
 
     def test_termination (self, current_gen, hist):

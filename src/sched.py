@@ -22,18 +22,17 @@ from json import dumps, loads
 from service import ExecutorInfo, Framework, Worker
 from threading import Thread
 from uuid import uuid1
+import logging
+import mesos
+import mesos_pb2
 import os
 import subprocess
 import sys
 import time
 
-import mesos
-import mesos_pb2
-
 
 ######################################################################
 ## class definitions
-
 
 class MesosScheduler (mesos.Scheduler):
     # https://github.com/apache/mesos/blob/master/src/python/src/mesos.py
@@ -64,7 +63,7 @@ class MesosScheduler (mesos.Scheduler):
         information about the master itself.
         """
 
-        print "registered with framework ID %s" % frameworkId.value
+        logging.info("registered with framework ID %s", frameworkId.value)
 
 
     def resourceOffers (self, driver, offers):
@@ -85,11 +84,11 @@ class MesosScheduler (mesos.Scheduler):
         saying as much).
         """
 
-        print "got %d resource offers" % len(offers)
+        logging.debug("Mesos Scheduler: got %d resource offers", len(offers))
 
         for offer in offers:
             tasks = []
-            print "got resource offer %s" % offer.id.value
+            logging.debug("Mesos Scheduler: got resource offer %s", offer.id.value)
 
             ## NB: currently we force 'offer.hostname' to be unique per Executor...
             ## could be changed, but we'd need to juggle port numbers
@@ -97,7 +96,7 @@ class MesosScheduler (mesos.Scheduler):
             if self.tasksLaunched < self._n_exe and offer.hostname not in self._executors:
                 tid = self.tasksLaunched
                 self.tasksLaunched += 1
-                print "accepting offer on executor %s to start task %d" % (offer.hostname, tid)
+                logging.debug("Mesos Scheduler: accepting offer on slave %s to start task %d", offer.hostname, tid)
 
                 task = mesos_pb2.TaskInfo()
                 task.task_id.value = str(tid)
@@ -118,11 +117,11 @@ class MesosScheduler (mesos.Scheduler):
                 tasks.append(task)
                 self.taskData[task.task_id.value] = (offer.slave_id, task.executor.executor_id)
 
-                ## NB: record/report slave state
+                # record/report slave state
                 self._executors[offer.hostname] = ExecutorInfo(offer, task)
 
                 for exe in self._executors.values():
-                    print exe.report()
+                    logging.debug(exe.report())
 
             # finally, have the driver launch the task
             driver.launchTasks(offer.id, tasks)
@@ -141,7 +140,7 @@ class MesosScheduler (mesos.Scheduler):
         lost or fails during that time.
         """
 
-        print "task %s is in state %d" % (update.task_id.value, update.state)
+        logging.debug("Mesos Scheduler: task %s is in state %d", update.task_id.value, update.state)
 
         if update.state == mesos_pb2.TASK_FINISHED:
             self.tasksFinished += 1
@@ -151,9 +150,7 @@ class MesosScheduler (mesos.Scheduler):
 
             # update the ExecutorInfo with details from the initial discovery task
             telemetry = loads(str(update.data))
-
-            print "resource telemetry: slave %s, executor %s" % (slave_id.value, executor_id.value),
-            print str(update.data)
+            logging.info("Mesos Slave: telemetry slave %s, executor %s\n%s", slave_id.value, executor_id.value, str(update.data))
 
             exe = self.lookup_executor(slave_id.value, executor_id.value)
             exe.ip_addr = telemetry["ip_addr"]
@@ -162,7 +159,7 @@ class MesosScheduler (mesos.Scheduler):
             exe.port = Worker.DEFAULT_PORT
 
             if self.tasksFinished == self._n_exe:
-                print "init tasks completed"
+                logging.info("Mesos Scheduler: %d init tasks completed", self._n_exe)
 
             ## NB: TODO integrate service launch from tarball instead
             message = str(dumps([ self._exe_path, "-p", exe.port ]))
@@ -178,18 +175,18 @@ class MesosScheduler (mesos.Scheduler):
 
         self.messagesReceived += 1
 
-        print "framework message: slave %s executor %s" % (slaveId.value, executorId.value)
-        print "executor message %d received: %s" % (self.messagesReceived, str(message))
+        logging.info("Mesos Scheduler: slave %s executor %s", slaveId.value, executorId.value)
+        logging.info("message %d received: %s", self.messagesReceived, str(message))
 
         if self.messagesReceived == self._n_exe:
             if self.messagesReceived != self.messagesSent:
-                print "sent", self.messagesSent, "received", self.messagesReceived
+                logging.critical("Mesos Scheduler: framework messages lost! sent %d received %d", self.messagesSent, self.messagesReceived)
                 sys.exit(1)
 
             for exe in self._executors.values():
-                print exe.report()
+                logging.debug(exe.report())
 
-            print "all executors launched and init tasks completed"
+            logging.info("all executors launched and init tasks completed")
             exe_info = self._executors.values()
             exe_list = [ exe.get_exe_uri() for exe in exe_info ]
 
@@ -226,7 +223,7 @@ class MesosScheduler (mesos.Scheduler):
         framework.name = "Exelixi Framework"
 
         if os.getenv("MESOS_CHECKPOINT"):
-            print "enabling checkpoint for the framework"
+            logging.debug("Mesos Scheduler: enabling checkpoint for the framework")
             framework.checkpoint = True
     
         ## NB: create a MesosScheduler and capture the command line options
@@ -234,14 +231,14 @@ class MesosScheduler (mesos.Scheduler):
 
         # initialize a driver
         if os.getenv("MESOS_AUTHENTICATE"):
-            print "enabling authentication for the framework"
+            logging.debug("Mesos Scheduler: enabling authentication for the framework")
     
             if not os.getenv("DEFAULT_PRINCIPAL"):
-                print "expecting authentication principal in the environment"
+                logging.critical("Mesos Scheduler: expecting authentication principal in the environment")
                 sys.exit(1);
 
             if not os.getenv("DEFAULT_SECRET"):
-                print "expecting authentication secret in the environment"
+                logging.critical("Mesos Scheduler: expecting authentication secret in the environment")
                 sys.exit(1);
 
             credential = mesos_pb2.Credential()
@@ -278,14 +275,14 @@ class MesosExecutor (mesos.Executor):
         # create a thread to run the task: tasks should always be run
         # in new threads or processes, rather than inside launchTask
         def run_task():
-            print "requested task %s" % task.task_id.value
+            logging.debug("Mesos Executor: requested task %s", task.task_id.value)
 
             update = mesos_pb2.TaskStatus()
             update.task_id.value = task.task_id.value
             update.state = mesos_pb2.TASK_RUNNING
             update.data = str("running discovery task")
 
-            print update.data
+            logging.debug(update.data)
             driver.sendStatusUpdate(update)
 
             update = mesos_pb2.TaskStatus()
@@ -295,7 +292,7 @@ class MesosExecutor (mesos.Executor):
             ## NB: TODO test port availability...
             update.data = str(dumps(get_telemetry(), indent=4))
 
-            print update.data
+            logging.debug(update.data)
             driver.sendStatusUpdate(update)
 
         # now run the requested task
@@ -311,7 +308,7 @@ class MesosExecutor (mesos.Executor):
         """
 
         # launch service
-        print "received message %s" % message
+        logging.debug("Mesos Executor: launch service: %s", message)
         subprocess.Popen(loads(message))
 
         # send the message back to the scheduler

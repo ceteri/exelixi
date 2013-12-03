@@ -22,7 +22,8 @@ from collections import OrderedDict
 from ga import APP_NAME
 from json import loads
 from service import Framework, Worker
-from urllib2 import urlopen
+from urllib2 import urlopen, URLError
+import logging
 import psutil
 import socket
 import sys
@@ -44,7 +45,7 @@ def get_telemetry ():
     x = psutil.cpu_times()
     telemetry["cpu_times"] = OrderedDict([ ("user", x.user), ("system", x.system), ("idle", x.idle) ])
 
-    x = psutil.disk_usage('/tmp')
+    x = psutil.disk_usage("/tmp")
     telemetry["disk_usage"] = OrderedDict([ ("free", x.free), ("percent", x.percent) ])
 
     x = psutil.disk_io_counters()
@@ -58,8 +59,14 @@ def get_telemetry ():
 
 def get_master_state (master_uri):
     """get current state, represented as JSON, from the Mesos master"""
-    response = urlopen("http://" + master_uri + "/master/state.json")
-    return loads(response.read())
+    uri = "http://" + master_uri + "/master/state.json"
+
+    try:
+        response = urlopen(uri)
+        return loads(response.read())
+    except URLError as e:
+        logging.critical("could not reach REST endpoint %s error: %s", uri, str(e.reason))
+        raise
 
 
 def get_master_leader (master_uri):
@@ -68,8 +75,8 @@ def get_master_leader (master_uri):
     return state["leader"].split("@")[1]
 
 
-def report_slave_list (master_uri):
-    """report a list of slave IP addr, one per line"""
+def pipe_slave_list (master_uri):
+    """report a list of slave IP addr, one per line to stdout -- for building pipes"""
     state = get_master_state(get_master_leader(master_uri))
 
     for s in state["slaves"]:
@@ -110,8 +117,12 @@ def parse_cli_args ():
 
     parser.add_argument("--feature", nargs=1, metavar="PKG.CLASS", default=["run.FeatureFactory"],
                         help="extension of FeatureFactory class to use for GA parameters and customizations")
+
     parser.add_argument("--prefix", nargs=1, default=["hdfs://exelixi"],
                         help="path prefix for durable storage")
+
+    parser.add_argument("--log", nargs=1, default=["DEBUG"],
+                        help="logging level: INFO, DEBUG, WARNING, ERROR, CRITICAL")
 
     return parser.parse_args()
 
@@ -119,12 +130,25 @@ def parse_cli_args ():
 if __name__=='__main__':
     # interpret CLI arguments
     args = parse_cli_args()
-    #print args
 
     if args.nodes:
-        # query and report the slave list, then exit
-        report_slave_list(args.nodes)
+        # query and report the slave list, then exit...
+        # NB: one per line, to handle large clusters gracefully
+        pipe_slave_list(args.nodes)
         sys.exit(0)
+
+    # set up logging
+    numeric_log_level = getattr(logging, args.log[0], None)
+
+    if not isinstance(numeric_log_level, int):
+        raise ValueError("Invalid log level: %s" % loglevel)
+
+    logging.basicConfig(format="%(asctime)s\t%(levelname)s\t%(message)s", 
+                        filename="exelixi.log", 
+                        filemode="w",
+                        level=numeric_log_level
+                        )
+    logging.debug(args)
 
     # report settings for optional features
     opts = []
@@ -137,36 +161,40 @@ if __name__=='__main__':
 
     # handle the different operational modes
     if args.master:
-        print "%s: running a Framework atop an Apache Mesos cluster" % (APP_NAME),
-        print "with master %s and %d executor(s)" % (args.master[0], int(args.executors[0]))
+        logging.info("%s: running a Framework atop an Apache Mesos cluster", APP_NAME)
+        logging.info(" ...with master %s and %d executor(s)", args.master[0], args.executors[0])
 
         for x in opts:
-            print x
+            logging.info(x)
 
-        from sched import MesosScheduler
+        try:
+            from sched import MesosScheduler
 
-        master_uri = get_master_leader(args.master[0])
-        ## NB: TODO make path relative
-        exe_path = "/home/ubuntu/exelixi-master/src/exelixi.py"
+            master_uri = get_master_leader(args.master[0])
+            ## NB: TODO make path relative
+            exe_path = "/home/ubuntu/exelixi-master/src/exelixi.py"
 
-        # run Mesos driver to launch Framework and manage resource offers
-        driver = MesosScheduler.start_framework(master_uri, exe_path, int(args.executors[0]), args.feature[0], args.prefix[0], args.cpu[0], args.mem[0])
-        MesosScheduler.stop_framework(driver)
+            # run Mesos driver to launch Framework and manage resource offers
+            driver = MesosScheduler.start_framework(master_uri, exe_path, args.executors[0], args.feature[0], args.prefix[0], args.cpu[0], args.mem[0])
+            MesosScheduler.stop_framework(driver)
+        except ImportError as e:
+            logging.critical("Python module 'mesos' has not been installed")
+            raise
 
     elif args.slaves:
-        print "%s: running a Framework in standalone mode" % (APP_NAME),
-        print "with slave(s) %s" % (args.slaves)
+        logging.info("%s: running a Framework in standalone mode", APP_NAME)
+        logging.info(" ...with slave(s) %s", args.slaves)
 
         for x in opts:
-            print x
+            logging.info(x)
 
         # run Framework orchestration via REST endpoints on the Executors
-        fra = Framework(args.feature, args.prefix)
+        fra = Framework(args.feature[0], args.prefix[0])
         fra.set_exe_list(args.slaves)
         fra.orchestrate()
 
     elif args.port:
-        print "%s: running a service on port %s" % (APP_NAME, args.port[0])
+        logging.info("%s: running a service on port %s", APP_NAME, args.port[0])
 
         try:
             svc = Worker(port=int(args.port[0]))
@@ -175,11 +203,13 @@ if __name__=='__main__':
             pass
 
     else:
-        print "%s: running an Executor on an Apache Mesos slave" % (APP_NAME)
-
-        from sched import MesosExecutor
+        logging.info("%s: running an Executor on an Apache Mesos slave", APP_NAME)
 
         try:
+            from sched import MesosExecutor
             MesosExecutor.run_executor()
+        except ImportError as e:
+            logging.critical("Python module 'mesos' has not been installed")
+            raise
         except KeyboardInterrupt:
             pass
