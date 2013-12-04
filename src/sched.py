@@ -215,9 +215,14 @@ class MesosScheduler (mesos.Scheduler):
         # initialize an executor
         executor = mesos_pb2.ExecutorInfo()
         executor.executor_id.value = uuid1().hex
-        executor.command.value = os.path.abspath(exe_path)
+        executor.command.value = exe_path
         executor.name = "Exelixi Executor"
         executor.source = "per-job build"
+
+        ## NB: TODO download tarball/container from HDFS
+        #uri = executor.command.uris.add()
+        #uri.executable = false
+        #uri.value = "hdfs://namenode/exelixi/exelixi.tgz"
 
         # initialize the framework
         framework = mesos_pb2.FrameworkInfo()
