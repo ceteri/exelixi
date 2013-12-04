@@ -21,6 +21,7 @@ from bloomfilter import BloomFilter
 from collections import Counter
 from hashlib import sha224
 from hashring import HashRing
+from httplib import BadStatusLine
 from importlib import import_module
 from json import dumps, loads
 from random import random, sample
@@ -62,8 +63,10 @@ def post_exe_rest (prefix, shard_id, exe_uri, path, base_msg):
         f = urlopen(req, dumps(msg))
         return f.readlines()
     except URLError as e:
-        logging.critical("could not reach REST endpoint %s error: %s", uri, str(e.reason))
+        logging.critical("could not reach REST endpoint %s error: %s", uri, str(e.reason), exc_info=True)
         raise
+    except BadStatusLine as e:
+        logging.critical("REST endpoint died %s error: %s", uri, str(e.line), exc_info=True)
 
 
 ######################################################################
@@ -80,7 +83,7 @@ class Population (object):
         self._hash_ring = None
 
         self.n_pop = self.feature_factory.n_pop
-        self._total_indiv = 0
+        self.total_indiv = 0
         self._term_limit = self.feature_factory.term_limit
         self._hist_granularity = self.feature_factory.hist_granularity
 
@@ -144,7 +147,7 @@ class Population (object):
         """test/add a newly generated Individual into the Population locally (birth)"""
         if not indiv.key in self._bf:
             self._bf.update([indiv.key])
-            self._total_indiv += 1
+            self.total_indiv += 1
 
             # potentially the most expensive operation, deferred until remote reification
             indiv.get_fitness(self.feature_factory, force=True)
@@ -204,7 +207,8 @@ class Population (object):
         if self._mutation_rate > random():
             indiv.mutate(self, current_gen, self.feature_factory)
         elif len(self._shard.values()) >= 3:
-            # ensure that there are at least three parents
+            # NB: ensure that at least three parents remain in each
+            # shard per generation
             self.evict(indiv)
 
 
@@ -214,7 +218,8 @@ class Population (object):
         good_fit = map(lambda x: x[1], filter(lambda x: x[0], partition))
         poor_fit = map(lambda x: x[1], filter(lambda x: not x[0], partition))
 
-        # randomly select other individuals to promote genetic diversity, while removing the remnant
+        # randomly select other individuals to promote genetic
+        # diversity, while removing the remnant
         for indiv in poor_fit:
             self._boost_diversity(current_gen, indiv)
 
@@ -236,30 +241,23 @@ class Population (object):
             indiv.populate(current_gen, self.feature_factory.generate_features())
             self.reify(indiv)
 
-        logging.info("gen: %d shard %s size %d total %d", current_gen, self._shard_id, len(self._shard.values()), self._total_indiv)
+        logging.info("gen\t%d\tshard\t%s\tsize\t%d\ttotal\t%d", current_gen, self._shard_id, len(self._shard.values()), self.total_indiv)
 
 
     def test_termination (self, current_gen, hist):
         """evaluate the terminating condition for this generation and report progress"""
-        return self.feature_factory.test_termination(current_gen, self._term_limit, hist)
+        return self.feature_factory.test_termination(current_gen, self._term_limit, hist, self.total_indiv)
 
 
     def enum (self, fitness_cutoff):
         """enum all Individuals that exceed the given fitness cutoff"""
-        return [[ "%0.4f" % indiv.get_fitness(), str(indiv.gen), indiv.get_json_feature_set() ]
+        return [[ "indiv", "%0.4f" % indiv.get_fitness(), str(indiv.gen), indiv.get_json_feature_set() ]
                 for indiv in filter(lambda x: x.get_fitness() >= fitness_cutoff, self._shard.values()) ]
-
-
-    def report_summary (self):
-        """report a summary of the evolution"""
-        for indiv in sorted(self._shard.values(), key=lambda x: x.get_fitness(), reverse=True):
-            print self._get_storage_path(indiv)
-            print "\t".join(["%0.4f" % indiv.get_fitness(), "%d" % indiv.gen, indiv.get_json_feature_set()])
 
 
 class Individual (object):
     def __init__ (self):
-        """create a member of the population"""
+        """create an Individual member of the Population"""
         self.gen = None
         self.key = None
         self._feature_set = None
@@ -318,6 +316,8 @@ class Individual (object):
 
 
 if __name__=='__main__':
+    ## test on single node / single shard
+
     # parse command line options
     if len(sys.argv) < 2:
         ff_name = "run.FeatureFactory"
@@ -342,4 +342,4 @@ if __name__=='__main__':
         pop.next_generation(current_gen, fitness_cutoff)
 
     # report summary
-    pop.report_summary()
+    pop.enum(fitness_cutoff)

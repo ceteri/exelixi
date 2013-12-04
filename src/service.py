@@ -43,7 +43,7 @@ class Worker (object):
 
     def __init__ (self, port=DEFAULT_PORT):
         monkey.patch_all()
-        self.server = wsgi.WSGIServer(('', int(port)), self._response_handler)
+        self.server = wsgi.WSGIServer(('', int(port)), self._response_handler, log=None)
         self.is_config = False
         self.prefix = None
         self.shard_id = None
@@ -68,7 +68,6 @@ class Worker (object):
             logging.info("executor service stopping... you can safely ignore any exceptions that follow")
             self.server.stop()
         else:
-            # NB: you have dialed a wrong number!
             # returns incorrect response in this case, to avoid exception
             logging.error("incorrect shard %s prefix %s", payload["shard_id"], payload["prefix"])
 
@@ -104,7 +103,7 @@ class Worker (object):
         start_response = args[2]
 
         if self.is_config:
-            # somebody contact security...
+            # hey, somebody call security...
             start_response('403 Forbidden', [('Content-Type', 'text/plain')])
             body.put("Forbidden, executor already in a configured state\r\n")
             body.put(StopIteration)
@@ -210,11 +209,16 @@ class Worker (object):
         start_response = args[2]
 
         if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            start_response('200 OK', [('Content-Type', 'text/plain')])
+            body.put("join queue...\r\n")
+
             self.reify_queue.join()
 
-            ## NB: perhaps use a long-polling HTTP request or websocket instead?
-            start_response('200 OK', [('Content-Type', 'text/plain')])
-            body.put("Bokay\r\n")
+            ## NB: TODO this step of emptying out the reify queues on
+            ## shards could take a while on a large run... perhaps use
+            ## a long-polling HTTP request or websocket instead?
+
+            body.put("done\r\n")
             body.put(StopIteration)
         else:
             self._bad_auth(payload, body, start_response)
@@ -228,7 +232,7 @@ class Worker (object):
 
         if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
             start_response('200 OK', [('Content-Type', 'application/json')])
-            body.put(dumps(self.pop.get_part_hist()))
+            body.put(dumps({ "total_indiv": self.pop.total_indiv, "hist": self.pop.get_part_hist() }))
             body.put("\r\n")
             body.put(StopIteration)
         else:
@@ -297,8 +301,8 @@ class Worker (object):
         uri_path = env['PATH_INFO']
         body = Queue()
 
-        ## NB: these handler cases can be collapsed into a common pattern
-        ## except for config/stop -- later
+        ## NB: TODO handler cases could be collapsed into a common
+        ## pattern, except for config/stop
 
         ##########################################
         # shard lifecycle endpoints
@@ -364,7 +368,8 @@ class Worker (object):
             gl.start()
 
         elif uri_path == '/pop/gen':
-            # create generation 0 of Individuals in this shard of the Population
+            # create generation 0 of Individuals in this shard of the
+            # Population
             payload = loads(env['wsgi.input'].read())
             gl = Greenlet(self.pop_gen, payload, body, start_response)
             gl.start()
@@ -400,19 +405,10 @@ class Worker (object):
             gl.start()
 
         elif uri_path == '/pop/reify':
-            # test/add a newly generated Individual into the Population (birth)
+            # test/add a new Individual into the Population (birth)
             payload = loads(env['wsgi.input'].read())
             gl = Greenlet(self.pop_reify, payload, body, start_response)
             gl.start()
-
-        elif uri_path == '/pop/evict':
-            # remove an Individual from the Population (death)
-            payload = loads(env['wsgi.input'].read())
-            print "POST", payload
-            ## TODO
-            start_response('200 OK', [('Content-Type', 'text/plain')])
-            body.put("Bokay\r\n")
-            body.put(StopIteration)
 
         ##########################################
         # utility endpoints
@@ -428,7 +424,8 @@ class Worker (object):
             payload = loads(env['wsgi.input'].read())
             gl = Greenlet(self.stop, payload, body)
             gl.start_later(1)
-            # HTTP response must start here, to avoid failure when server stops
+            # HTTP response must start here, to avoid failure when
+            # server stops
             start_response('200 OK', [('Content-Type', 'text/plain')])
             body.put("Goodbye\r\n")
             body.put(StopIteration)
@@ -500,22 +497,24 @@ class Framework (object):
 
 
     def orchestrate (self):
-        """orchestrate an algorithm run"""
+        """orchestrate an algorithm run across the hash ring via REST endpoints"""
 
         # configure the shards and their HashRing
         self._send_exe_rest("shard/config", {})
         ring = { shard_id: exe_uri for shard_id, (exe_uri, exe_info) in self._shard_assoc.items() }
         self._send_exe_rest("ring/init", { "ring": ring })
 
-        # initialize a Population of unique Individuals at generation 0,
-        # then iterate N times or until a "good enough" solution is found
+        # initialize Population of unique Individuals at generation 0,
+        # then iterate N times or until a "good enough" solution is
+        # found
         pop = Population(Individual(), self.ff_name, prefix=self.prefix)
         self._send_exe_rest("pop/init", { "ff_name": self.ff_name })
         self._send_exe_rest("pop/gen", {})
 
         while True:
-            # test (1) wait until all shards have finished sending reify requests,
-            # then (2) join on each reify request queue, to wait until they have emptied
+            # test (1) wait until all shards have finished sending
+            # reify requests, then (2) join on each reify request
+            # queue, to wait until they have emptied
             self._send_exe_rest("pop/wait", {})
             self._send_exe_rest("pop/join", {})
 
@@ -523,12 +522,14 @@ class Framework (object):
                 break
 
             # determine the fitness cutoff threshold
+            pop.total_indiv = 0
             hist = {}
 
-            for shard_hist_json in self._send_exe_rest("pop/hist", {}):
-                ## NB: TODO aggregate total_indiv from the shards
-                logging.debug(shard_hist_json)
-                self.aggregate_hist(hist, loads(shard_hist_json))
+            for shard_msg in self._send_exe_rest("pop/hist", {}):
+                logging.debug(shard_msg)
+                payload = loads(shard_msg)
+                pop.total_indiv += payload["total_indiv"]
+                self.aggregate_hist(hist, payload["hist"])
 
             # test for the terminating condition
             if pop.test_termination(self.current_gen, hist):
@@ -536,7 +537,8 @@ class Framework (object):
 
             ## NB: TODO save Framework state to Zookeeper
 
-            # apply fitness cutoff and breed "children" for the next generation
+            # apply fitness cutoff and breed "children" for the next
+            # generation
             fitness_cutoff = pop.get_fitness_cutoff(hist)
             self._send_exe_rest("pop/next", { "current_gen": self.current_gen, "fitness_cutoff": fitness_cutoff })
             self.current_gen += 1
@@ -577,9 +579,6 @@ class SlaveInfo (object):
 
 
 if __name__=='__main__':
-    ## Framework operations:
-
-    # parse command line options
     if len(sys.argv) < 2:
         print "usage:\n  %s <host:port> <feature factory>" % (sys.argv[0])
         sys.exit(1)
@@ -592,7 +591,3 @@ if __name__=='__main__':
 
     fra.set_exe_list([exe_uri])
     fra.orchestrate()
-    sys.exit(0)
-
-    # report summary
-    pop.report_summary()

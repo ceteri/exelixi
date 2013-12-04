@@ -21,6 +21,7 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 from ga import APP_NAME
 from json import loads
+from os.path import abspath
 from service import Framework, Worker
 from urllib2 import urlopen, URLError
 import logging
@@ -65,7 +66,7 @@ def get_master_state (master_uri):
         response = urlopen(uri)
         return loads(response.read())
     except URLError as e:
-        logging.critical("could not reach REST endpoint %s error: %s", uri, str(e.reason))
+        logging.critical("could not reach REST endpoint %s error: %s", uri, str(e.reason), exc_info=True)
         raise
 
 
@@ -171,14 +172,13 @@ if __name__=='__main__':
             from sched import MesosScheduler
 
             master_uri = get_master_leader(args.master[0])
-            ## NB: TODO make path relative
-            exe_path = "/home/ubuntu/exelixi-master/src/exelixi.py"
+            exe_path = os.path.abspath(sys.argv[0])
 
             # run Mesos driver to launch Framework and manage resource offers
             driver = MesosScheduler.start_framework(master_uri, exe_path, args.executors[0], args.feature[0], args.prefix[0], args.cpu[0], args.mem[0])
             MesosScheduler.stop_framework(driver)
         except ImportError as e:
-            logging.critical("Python module 'mesos' has not been installed")
+            logging.critical("Python module 'mesos' has not been installed", exc_info=True)
             raise
 
     elif args.slaves:
@@ -209,7 +209,7 @@ if __name__=='__main__':
             from sched import MesosExecutor
             MesosExecutor.run_executor()
         except ImportError as e:
-            logging.critical("Python module 'mesos' has not been installed")
+            logging.critical("Python module 'mesos' has not been installed", exc_info=True)
             raise
         except KeyboardInterrupt:
             pass

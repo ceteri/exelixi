@@ -3,10 +3,12 @@
 EGG="mesos_0.14.0-rc4_amd64.egg"
 
 echo "installing Python/Mesos..."
+## NB: TODO de-Ubuntu-fy this install, perhaps via Anaconda/conda?
 sudo aptitude -y install python-setuptools
 sudo aptitude -y install python-protobuf
 sudo aptitude -y install python-gevent
 sudo aptitude -y install python-psutil 
+
 rm -rf $EGG
 wget http://downloads.mesosphere.io/master/ubuntu/12.10/$EGG
 sudo easy_install $EGG
