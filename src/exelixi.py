@@ -172,7 +172,7 @@ if __name__=='__main__':
             from sched import MesosScheduler
 
             master_uri = get_master_leader(args.master[0])
-            exe_path = os.path.abspath(sys.argv[0])
+            exe_path = abspath(sys.argv[0])
 
             # run Mesos driver to launch Framework and manage resource offers
             driver = MesosScheduler.start_framework(master_uri, exe_path, args.executors[0], args.feature[0], args.prefix[0], args.cpu[0], args.mem[0])
