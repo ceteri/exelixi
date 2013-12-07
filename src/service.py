@@ -494,60 +494,8 @@ class Framework (object):
         ring = { shard_id: exe_uri for shard_id, (exe_uri, exe_info) in self._shard_assoc.items() }
         self.send_exe_rest("ring/init", { "ring": ring })
 
-        ## specific to GA (begin)
-
-        # initialize Population of unique Individuals at generation 0,
-        # then iterate N times or until a "good enough" solution is
-        # found
         pop = Population(Individual(), self.ff_name, prefix=self.prefix)
-        self.send_exe_rest("pop/init", { "ff_name": pop.ff_name })
-        self.send_exe_rest("pop/gen", {})
-
-        while True:
-            # test (1) wait until all shards have finished sending
-            # reify requests, then (2) join on each reify request
-            # queue, to wait until they have emptied
-            self.send_exe_rest("pop/wait", {})
-            self.send_exe_rest("pop/join", {})
-
-            if pop.current_gen == pop.feature_factory.n_gen:
-                break
-
-            # determine the fitness cutoff threshold
-            pop.total_indiv = 0
-            hist = {}
-
-            for shard_msg in self.send_exe_rest("pop/hist", {}):
-                logging.debug(shard_msg)
-                payload = loads(shard_msg)
-                pop.total_indiv += payload["total_indiv"]
-                pop.aggregate_hist(hist, payload["hist"])
-
-            # test for the terminating condition
-            if pop.test_termination(pop.current_gen, hist):
-                break
-
-            ## NB: TODO save Framework state to Zookeeper
-
-            # apply fitness cutoff and breed "children" for the next
-            # generation
-            fitness_cutoff = pop.get_fitness_cutoff(hist)
-            self.send_exe_rest("pop/next", { "current_gen": pop.current_gen, "fitness_cutoff": fitness_cutoff })
-            pop.current_gen += 1
-
-        # report the best Individuals in the final result
-        results = []
-
-        for l in self.send_exe_rest("pop/enum", { "fitness_cutoff": fitness_cutoff }):
-            results.extend(loads(l))
-
-        results.sort(reverse=True)
-
-        for x in results:
-            # print results to stdout
-            print "\t".join(x)
-
-        ## specific to GA (end)
+        pop.orchestrate(self)
 
         # shutdown
         self.send_exe_rest("stop", {})
