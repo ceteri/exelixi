@@ -449,8 +449,6 @@ class Framework (object):
         self.prefix = prefix + "/" + self.uuid
         logging.info("prefix: %s", self.prefix)
 
-        self.n_gen = self.feature_factory.n_gen
-        self.current_gen = 0
         self._shard_assoc = None
 
 
@@ -476,7 +474,7 @@ class Framework (object):
         logging.info("set executor list: %s", str(self._shard_assoc))
 
 
-    def _send_exe_rest (self, path, base_msg):
+    def send_exe_rest (self, path, base_msg):
         """access a REST endpoint on each of the Executors"""
         json_str = []
 
@@ -487,52 +485,46 @@ class Framework (object):
         return json_str
 
 
-    def aggregate_hist (self, hist, shard_hist):
-        """aggregate the values of a shard's partial histogram into the full histogram"""
-        for key, val in shard_hist:
-            if key not in hist:
-                hist[key] = val
-            else:
-                hist[key] += val
-
-
     def orchestrate (self):
-        """orchestrate an algorithm run across the hash ring via REST endpoints"""
+        """orchestrate a unit of work distributed across the hash ring via REST endpoints"""
 
-        # configure the shards and their HashRing
-        self._send_exe_rest("shard/config", {})
+        # configure the shards and the hash ring
+        self.send_exe_rest("shard/config", {})
+
         ring = { shard_id: exe_uri for shard_id, (exe_uri, exe_info) in self._shard_assoc.items() }
-        self._send_exe_rest("ring/init", { "ring": ring })
+        self.send_exe_rest("ring/init", { "ring": ring })
+
+        ## specific to GA (begin)
 
         # initialize Population of unique Individuals at generation 0,
         # then iterate N times or until a "good enough" solution is
         # found
         pop = Population(Individual(), self.ff_name, prefix=self.prefix)
-        self._send_exe_rest("pop/init", { "ff_name": self.ff_name })
-        self._send_exe_rest("pop/gen", {})
+        self.send_exe_rest("pop/init", { "ff_name": pop.ff_name })
+        self.send_exe_rest("pop/gen", {})
 
         while True:
             # test (1) wait until all shards have finished sending
             # reify requests, then (2) join on each reify request
             # queue, to wait until they have emptied
-            self._send_exe_rest("pop/wait", {})
-            self._send_exe_rest("pop/join", {})
+            self.send_exe_rest("pop/wait", {})
+            self.send_exe_rest("pop/join", {})
 
-            if self.current_gen == self.n_gen:
+            if pop.current_gen == pop.feature_factory.n_gen:
                 break
 
             # determine the fitness cutoff threshold
             pop.total_indiv = 0
             hist = {}
 
-            for shard_msg in self._send_exe_rest("pop/hist", {}):
+            for shard_msg in self.send_exe_rest("pop/hist", {}):
                 logging.debug(shard_msg)
                 payload = loads(shard_msg)
                 pop.total_indiv += payload["total_indiv"]
-                self.aggregate_hist(hist, payload["hist"])
+                pop.aggregate_hist(hist, payload["hist"])
 
             # test for the terminating condition
-            if pop.test_termination(self.current_gen, hist):
+            if pop.test_termination(pop.current_gen, hist):
                 break
 
             ## NB: TODO save Framework state to Zookeeper
@@ -540,13 +532,13 @@ class Framework (object):
             # apply fitness cutoff and breed "children" for the next
             # generation
             fitness_cutoff = pop.get_fitness_cutoff(hist)
-            self._send_exe_rest("pop/next", { "current_gen": self.current_gen, "fitness_cutoff": fitness_cutoff })
-            self.current_gen += 1
+            self.send_exe_rest("pop/next", { "current_gen": pop.current_gen, "fitness_cutoff": fitness_cutoff })
+            pop.current_gen += 1
 
         # report the best Individuals in the final result
         results = []
 
-        for l in self._send_exe_rest("pop/enum", { "fitness_cutoff": fitness_cutoff }):
+        for l in self.send_exe_rest("pop/enum", { "fitness_cutoff": fitness_cutoff }):
             results.extend(loads(l))
 
         results.sort(reverse=True)
@@ -555,8 +547,10 @@ class Framework (object):
             # print results to stdout
             print "\t".join(x)
 
+        ## specific to GA (end)
+
         # shutdown
-        self._send_exe_rest("stop", {})
+        self.send_exe_rest("stop", {})
 
 
 class SlaveInfo (object):

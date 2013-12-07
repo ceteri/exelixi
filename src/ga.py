@@ -75,6 +75,7 @@ def post_exe_rest (prefix, shard_id, exe_uri, path, base_msg):
 class Population (object):
     def __init__ (self, indiv_instance, ff_name, prefix="/tmp/exelixi"):
         self.indiv_class = indiv_instance.__class__
+        self.ff_name = ff_name
         self.feature_factory = instantiate_class(ff_name)
 
         self.prefix = prefix
@@ -84,6 +85,8 @@ class Population (object):
 
         self.n_pop = self.feature_factory.n_pop
         self.total_indiv = 0
+        self.current_gen = 0
+
         self._term_limit = self.feature_factory.term_limit
         self._hist_granularity = self.feature_factory.hist_granularity
 
@@ -173,6 +176,15 @@ class Population (object):
         d = (Counter([ round(indiv.get_fitness(self.feature_factory, force=False), self._hist_granularity) for indiv in self._shard.values() ])).items()
         d.sort(reverse=True)
         return d
+
+
+    def aggregate_hist (self, hist, shard_hist):
+        """aggregate the values of a shard's partial histogram into the full histogram"""
+        for key, val in shard_hist:
+            if key not in hist:
+                hist[key] = val
+            else:
+                hist[key] += val
 
 
     def get_fitness_cutoff (self, hist):
@@ -329,17 +341,21 @@ if __name__=='__main__':
 
     # initialize a Population of unique Individuals at generation 0
     pop = Population(Individual(), ff_name, prefix="/tmp/exelixi")
-    pop.populate(0)
+    pop.populate(pop.current_gen)
 
     # iterate N times or until a "good enough" solution is found
-    for current_gen in xrange(ff.n_gen):
-        hist = pop.get_part_hist()
+    while pop.current_gen < ff.n_gen:
+        hist = {}
+        pop.aggregate_hist(hist, pop.get_part_hist())
 
-        if pop.test_termination(current_gen, hist):
+        if pop.test_termination(pop.current_gen, hist):
             break
 
         fitness_cutoff = pop.get_fitness_cutoff(hist)
-        pop.next_generation(current_gen, fitness_cutoff)
+        pop.next_generation(pop.current_gen, fitness_cutoff)
+
+        pop.current_gen += 1
 
     # report summary
-    pop.enum(fitness_cutoff)
+    for x in sorted(pop.enum(fitness_cutoff), reverse=True):
+        print "\t".join(x)
