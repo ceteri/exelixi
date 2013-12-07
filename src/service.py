@@ -17,12 +17,10 @@
 # https://github.com/ceteri/exelixi
 
 
-from ga import instantiate_class, post_exe_rest, APP_NAME, Individual, Population
+from ga import instantiate_class, post_distrib_rest, APP_NAME, Individual, Population
 from gevent import monkey, spawn, wsgi, Greenlet
 from gevent.event import Event
-from gevent.queue import JoinableQueue, Queue
-from hashring import HashRing
-from itertools import chain
+from gevent.queue import JoinableQueue
 from json import dumps, loads
 from urllib2 import urlopen, Request
 from uuid import uuid1
@@ -42,27 +40,63 @@ class Worker (object):
 
 
     def __init__ (self, port=DEFAULT_PORT):
+        # REST services
         monkey.patch_all()
         self.server = wsgi.WSGIServer(('', int(port)), self._response_handler, log=None)
         self.is_config = False
+
+        # sharding
         self.prefix = None
         self.shard_id = None
         self.ring = None
-        self.ff_name = None
-        self.pop = None
-        self.evt = None
-        self.reify_queue = None
+
+        # concurrency
+        self.task_event = None
+        self.task_queue = None
+
+        # UnitOfWork
+        self._uow = None
 
 
-    def start (self):
+    def _get_response_context (self, args):
+        """decode the WSGI response context from the Greenlet args"""
+        env = args[0]
+        msg = env["wsgi.input"].read()
+        payload = loads(msg)
+        start_response = args[1]
+        body = args[2]
+
+        return payload, start_response, body
+
+
+    def _bad_auth (self, payload, start_response, body):
+        """UoW caller did not provide the correct credentials to access this shard"""
+        start_response('403 Forbidden', [('Content-Type', 'text/plain')])
+        body.put('Forbidden\r\n')
+        body.put(StopIteration)
+
+        logging.error("incorrect shard %s prefix %s", payload["shard_id"], payload["prefix"])
+
+
+    def queue_consumer (self):
+        """consume/serve requests until the task_queue empties"""
+        while True:
+            payload = self.task_queue.get()
+
+            try:
+                self._uow.perform_task(payload)
+            finally:
+                self.task_queue.task_done()
+
+
+    def shard_start (self):
         """start the service"""
         self.server.serve_forever()
 
 
-    def stop (self, *args, **kwargs):
+    def shard_stop (self, *args, **kwargs):
         """stop the service"""
         payload = args[0]
-        body = args[1]
 
         if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
             logging.info("executor service stopping... you can safely ignore any exceptions that follow")
@@ -72,35 +106,9 @@ class Worker (object):
             logging.error("incorrect shard %s prefix %s", payload["shard_id"], payload["prefix"])
 
 
-    def _bad_auth (self, payload, body, start_response):
-        """Framework did not provide the correct credentials to access this shard"""
-        start_response('403 Forbidden', [('Content-Type', 'text/plain')])
-        body.put('Forbidden\r\n')
-        body.put(StopIteration)
-
-        logging.error("incorrect shard %s prefix %s", payload["shard_id"], payload["prefix"])
-
-
-    def reify_consumer (self):
-        """consume/serve reify requests until the queue empties"""
-
-        while True:
-            payload = self.reify_queue.get()
-
-            try:
-                key = payload["key"]
-                gen = payload["gen"]
-                feature_set = payload["feature_set"]
-                self.pop.receive_reify(key, gen, feature_set)
-            finally:
-                self.reify_queue.task_done()
-
-
     def shard_config (self, *args, **kwargs):
         """configure the service to run a shard"""
-        payload = args[0]
-        body = args[1]
-        start_response = args[2]
+        payload, start_response, body = self._get_response_context(args)
 
         if self.is_config:
             # hey, somebody call security...
@@ -121,11 +129,44 @@ class Worker (object):
             logging.info("configuring shard %s prefix %s", self.shard_id, self.prefix)
 
 
+    def shard_wait (self, *args, **kwargs):
+        """wait until all shards finished sending task_queue requests"""
+        payload, start_response, body = self._get_response_context(args)
+
+        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            if self.task_event:
+                self.task_event.wait()
+
+            # HTTP response first, then initiate long-running task
+            start_response('200 OK', [('Content-Type', 'text/plain')])
+            body.put("Bokay\r\n")
+            body.put(StopIteration)
+        else:
+            self._bad_auth(payload, start_response, body)
+
+
+    def shard_join (self, *args, **kwargs):
+        """join on the task_queue, as a barrier to wait until it empties"""
+        payload, start_response, body = self._get_response_context(args)
+
+        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            start_response('200 OK', [('Content-Type', 'text/plain')])
+            body.put("join queue...\r\n")
+
+            ## NB: TODO this step of emptying out the task_queue on
+            ## shards could take a while on a large run... perhaps use
+            ## a long-polling HTTP request or websocket instead?
+            self.task_queue.join()
+
+            body.put("done\r\n")
+            body.put(StopIteration)
+        else:
+            self._bad_auth(payload, start_response, body)
+
+
     def ring_init (self, *args, **kwargs):
         """initialize the HashRing"""
-        payload = args[0]
-        body = args[1]
-        start_response = args[2]
+        payload, start_response, body = self._get_response_context(args)
 
         if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
             self.ring = payload["ring"]
@@ -139,196 +180,53 @@ class Worker (object):
             self._bad_auth(payload, body, start_response)
 
 
-    def pop_init (self, *args, **kwargs):
-        """initialize a Population of unique Individuals on this shard"""
-        payload = args[0]
-        body = args[1]
-        start_response = args[2]
-
-        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
-            self.ff_name = payload["ff_name"]
-            logging.info("initializing population based on %s", self.ff_name)
-
-            self.pop = Population(Individual(), self.ff_name, self.prefix)
-            self.pop.set_ring(self.shard_id, self.ring)
-
-            self.reify_queue = JoinableQueue()
-            spawn(self.reify_consumer)
-
-            start_response('200 OK', [('Content-Type', 'text/plain')])
-            body.put("Bokay\r\n")
-            body.put(StopIteration)
-        else:
-            self._bad_auth(payload, body, start_response)
-
-
-    def pop_gen (self, *args, **kwargs):
-        """create generation 0 of Individuals in this shard of the Population"""
-        payload = args[0]
-        body = args[1]
-        start_response = args[2]
-
-        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
-            self.evt = Event()
-
-            # HTTP response first, then initiate long-running task
-            start_response('200 OK', [('Content-Type', 'text/plain')])
-            body.put("Bokay\r\n")
-            body.put(StopIteration)
-
-            self.pop.populate(0)
-
-            self.evt.set()
-            self.evt = None
-        else:
-            self._bad_auth(payload, body, start_response)
-
-
-    def pop_wait (self, *args, **kwargs):
-        """wait until all shards finished sending reify requests"""
-        payload = args[0]
-        body = args[1]
-        start_response = args[2]
-
-        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
-            if self.evt:
-                self.evt.wait()
-
-            # HTTP response first, then initiate long-running task
-            start_response('200 OK', [('Content-Type', 'text/plain')])
-            body.put("Bokay\r\n")
-            body.put(StopIteration)
-        else:
-            self._bad_auth(payload, body, start_response)
-
-
-    def pop_join (self, *args, **kwargs):
-        """join on the reify queue, to wait until it empties"""
-        payload = args[0]
-        body = args[1]
-        start_response = args[2]
-
-        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
-            start_response('200 OK', [('Content-Type', 'text/plain')])
-            body.put("join queue...\r\n")
-
-            self.reify_queue.join()
-
-            ## NB: TODO this step of emptying out the reify queues on
-            ## shards could take a while on a large run... perhaps use
-            ## a long-polling HTTP request or websocket instead?
-
-            body.put("done\r\n")
-            body.put(StopIteration)
-        else:
-            self._bad_auth(payload, body, start_response)
-
-
-    def pop_hist (self, *args, **kwargs):
-        """calculate a partial histogram for the fitness distribution"""
-        payload = args[0]
-        body = args[1]
-        start_response = args[2]
-
-        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
-            start_response('200 OK', [('Content-Type', 'application/json')])
-            body.put(dumps({ "total_indiv": self.pop.total_indiv, "hist": self.pop.get_part_hist() }))
-            body.put("\r\n")
-            body.put(StopIteration)
-        else:
-            self._bad_auth(payload, body, start_response)
-
-
-    def pop_next (self, *args, **kwargs):
-        """iterate N times or until a 'good enough' solution is found"""
-        payload = args[0]
-        body = args[1]
-        start_response = args[2]
-
-        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
-            self.evt = Event()
-
-            # HTTP response first, then initiate long-running task
-            start_response('200 OK', [('Content-Type', 'text/plain')])
-            body.put("Bokay\r\n")
-            body.put(StopIteration)
-
-            current_gen = payload["current_gen"]
-            fitness_cutoff = payload["fitness_cutoff"]
-            self.pop.next_generation(current_gen, fitness_cutoff)
-
-            self.evt.set()
-            self.evt = None
-        else:
-            self._bad_auth(payload, body, start_response)
-
-
-    def pop_enum (self, *args, **kwargs):
-        """enumerate the Individuals in this shard of the Population"""
-        payload = args[0]
-        body = args[1]
-        start_response = args[2]
-
-        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
-            fitness_cutoff = payload["fitness_cutoff"]
-
-            start_response('200 OK', [('Content-Type', 'application/json')])
-            body.put(dumps(self.pop.enum(fitness_cutoff)))
-            body.put("\r\n")
-            body.put(StopIteration)
-        else:
-            self._bad_auth(payload, body, start_response)
-
-
-    def pop_reify (self, *args, **kwargs):
-        """test/add a newly generated Individual into the Population (birth)"""
-        payload = args[0]
-        body = args[1]
-        start_response = args[2]
-
-        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
-            self.reify_queue.put_nowait(payload)
-
-            start_response('200 OK', [('Content-Type', 'text/plain')])
-            body.put("Bokay\r\n")
-            body.put(StopIteration)
-        else:
-            self._bad_auth(payload, body, start_response)
-
-
     def _response_handler (self, env, start_response):
         """handle HTTP request/response"""
-        uri_path = env['PATH_INFO']
-        body = Queue()
-
-        ## NB: TODO handler cases could be collapsed into a common
-        ## pattern, except for config/stop
+        uri_path = env["PATH_INFO"]
+        body = JoinableQueue()
 
         ##########################################
-        # shard lifecycle endpoints
+        # UnitOfWork endpoints
 
-        if uri_path == '/shard/config':
+        if self.endpoint_uow(uri_path, env, start_response, body):
+            pass
+
+        ##########################################
+        # Worker endpoints
+
+        elif uri_path == '/shard/config':
             # configure the service to run a shard
-            payload = loads(env['wsgi.input'].read())
-            gl = Greenlet(self.shard_config, payload, body, start_response)
-            gl.start()
+            Greenlet(self.shard_config, env, start_response, body).start()
+
+        elif uri_path == '/shard/wait':
+            # wait until all shards have finished sending task_queue requests
+            Greenlet(self.shard_wait, env, start_response, body).start()
+
+        elif uri_path == '/shard/join':
+            # join on the task_queue, as a barrier to wait until it empties
+            Greenlet(self.shard_join, env, start_response, body).start()
 
         elif uri_path == '/shard/persist':
-            # checkpoint the service state to durable storage
-            payload = loads(env['wsgi.input'].read())
-            print "POST", payload
-            ## TODO
+            ## NB: TODO checkpoint the service state to durable storage
             start_response('200 OK', [('Content-Type', 'text/plain')])
             body.put("Bokay\r\n")
             body.put(StopIteration)
 
         elif uri_path == '/shard/recover':
-            # restart the service, recovering from the most recent checkpoint
-            payload = loads(env['wsgi.input'].read())
-            print "POST", payload
-            ## TODO
+            ## NB: TODO restart the service, recovering from most recent checkpoint
             start_response('200 OK', [('Content-Type', 'text/plain')])
             body.put("Bokay\r\n")
+            body.put(StopIteration)
+
+        elif uri_path == '/shard/stop':
+            # shutdown the service
+            ## NB: must parse POST data first, to avoid exception
+            payload = loads(env["wsgi.input"].read())
+            Greenlet(self.shard_stop, payload).start_later(1)
+
+            # HTTP response starts later, to avoid deadlock when server stops
+            start_response('200 OK', [('Content-Type', 'text/plain')])
+            body.put("Goodbye\r\n")
             body.put(StopIteration)
 
         ##########################################
@@ -336,79 +234,19 @@ class Worker (object):
 
         elif uri_path == '/ring/init':
             # initialize the HashRing
-            payload = loads(env['wsgi.input'].read())
-            gl = Greenlet(self.ring_init, payload, body, start_response)
-            gl.start()
+            Greenlet(self.ring_init, env, start_response, body).start()
 
         elif uri_path == '/ring/add':
-            # add a node to the HashRing
-            payload = loads(env['wsgi.input'].read())
-            print "POST", payload
-            ## TODO
+            ## NB: TODO add a node to the HashRing
             start_response('200 OK', [('Content-Type', 'text/plain')])
             body.put("Bokay\r\n")
             body.put(StopIteration)
 
         elif uri_path == '/ring/del':
-            # delete a node from the HashRing
-            payload = loads(env['wsgi.input'].read())
-            print "POST", payload
-            ## TODO
+            ## NB: TODO delete a node from the HashRing
             start_response('200 OK', [('Content-Type', 'text/plain')])
             body.put("Bokay\r\n")
             body.put(StopIteration)
-
-        ##########################################
-        # evolution endpoints
-
-        elif uri_path == '/pop/init':
-            # initialize the Population subset on this shard
-            payload = loads(env['wsgi.input'].read())
-            gl = Greenlet(self.pop_init, payload, body, start_response)
-            gl.start()
-
-        elif uri_path == '/pop/gen':
-            # create generation 0 of Individuals in this shard of the
-            # Population
-            payload = loads(env['wsgi.input'].read())
-            gl = Greenlet(self.pop_gen, payload, body, start_response)
-            gl.start()
-
-        elif uri_path == '/pop/wait':
-            # wait until all shards have finished sending reify requests
-            payload = loads(env['wsgi.input'].read())
-            gl = Greenlet(self.pop_wait, payload, body, start_response)
-            gl.start()
-
-        elif uri_path == '/pop/join':
-            # join on the reify queue, to wait until it empties
-            payload = loads(env['wsgi.input'].read())
-            gl = Greenlet(self.pop_join, payload, body, start_response)
-            gl.start()
-
-        elif uri_path == '/pop/hist':
-            # calculate a partial histogram for the fitness distribution
-            payload = loads(env['wsgi.input'].read())
-            gl = Greenlet(self.pop_hist, payload, body, start_response)
-            gl.start()
-
-        elif uri_path == '/pop/next':
-            # attempt to run another generation
-            payload = loads(env['wsgi.input'].read())
-            gl = Greenlet(self.pop_next, payload, body, start_response)
-            gl.start()
-
-        elif uri_path == '/pop/enum':
-            # enumerate the Individuals in this shard of the Population
-            payload = loads(env['wsgi.input'].read())
-            gl = Greenlet(self.pop_enum, payload, body, start_response)
-            gl.start()
-
-        elif uri_path == '/pop/reify':
-            # test/add a new Individual into the Population (birth)
-            payload = loads(env['wsgi.input'].read())
-            gl = Greenlet(self.pop_reify, payload, body, start_response)
-            gl.start()
 
         ##########################################
         # utility endpoints
@@ -417,17 +255,6 @@ class Worker (object):
             # dump info about the service in general
             start_response('200 OK', [('Content-Type', 'text/plain')])
             body.put(str(env) + "\r\n")
-            body.put(StopIteration)
-
-        elif uri_path == '/stop':
-            # shutdown the service
-            payload = loads(env['wsgi.input'].read())
-            gl = Greenlet(self.stop, payload, body)
-            gl.start_later(1)
-            # HTTP response must start here, to avoid failure when
-            # server stops
-            start_response('200 OK', [('Content-Type', 'text/plain')])
-            body.put("Goodbye\r\n")
             body.put(StopIteration)
 
         else:
@@ -439,17 +266,155 @@ class Worker (object):
         return body
 
 
+    ######################################################################
+    ## NB: TODO refactor GA-specific code into UnitOfWork design pattern
+
+    def endpoint_uow (self, uri_path, env, start_response, body):
+        """UnitOfWork REST endpoints"""
+        if uri_path == '/pop/init':
+            # initialize the Population subset on this shard
+            Greenlet(self.pop_init, env, start_response, body).start()
+            return True
+        elif uri_path == '/pop/gen':
+            # create generation 0 in this shard
+            Greenlet(self.pop_gen, env, start_response, body).start()
+            return True
+        elif uri_path == '/pop/hist':
+            # calculate a partial histogram for the fitness distribution
+            Greenlet(self.pop_hist, env, start_response, body).start()
+            return True
+        elif uri_path == '/pop/next':
+            # attempt to run another generation
+            Greenlet(self.pop_next, env, start_response, body).start()
+            return True
+        elif uri_path == '/pop/enum':
+            # enumerate the Individuals in this shard of the Population
+            Greenlet(self.pop_enum, env, start_response, body).start()
+            return True
+        elif uri_path == '/pop/reify':
+            # test/add a new Individual into the Population (birth)
+            Greenlet(self.pop_reify, env, start_response, body).start()
+            return True
+        else:
+            return False
+
+
+    def pop_init (self, *args, **kwargs):
+        """initialize a Population of unique Individuals on this shard"""
+        payload, start_response, body = self._get_response_context(args)
+
+        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            ff_name = payload["ff_name"]
+            logging.info("initializing population based on %s", ff_name)
+
+            self._uow = Population(Individual(), ff_name, self.prefix)
+            self._uow.set_ring(self.shard_id, self.ring)
+
+            # prepare task_queue for another set of distributed tasks
+            self.task_queue = JoinableQueue()
+            spawn(self.queue_consumer)
+
+            start_response('200 OK', [('Content-Type', 'text/plain')])
+            body.put("Bokay\r\n")
+            body.put(StopIteration)
+        else:
+            self._bad_auth(payload, start_response, body)
+
+
+    def pop_gen (self, *args, **kwargs):
+        """create generation 0 of Individuals in this shard of the Population"""
+        payload, start_response, body = self._get_response_context(args)
+
+        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            self.task_event = Event()
+
+            # HTTP response first, then initiate long-running task
+            start_response('200 OK', [('Content-Type', 'text/plain')])
+            body.put("Bokay\r\n")
+            body.put(StopIteration)
+
+            self._uow.populate(0)
+
+            self.task_event.set()
+            self.task_event = None
+        else:
+            self._bad_auth(payload, start_response, body)
+
+
+    def pop_hist (self, *args, **kwargs):
+        """calculate a partial histogram for the fitness distribution"""
+        payload, start_response, body = self._get_response_context(args)
+
+        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            start_response('200 OK', [('Content-Type', 'application/json')])
+            body.put(dumps({ "total_indiv": self._uow.total_indiv, "hist": self._uow.get_part_hist() }))
+            body.put("\r\n")
+            body.put(StopIteration)
+        else:
+            self._bad_auth(payload, start_response, body)
+
+
+    def pop_next (self, *args, **kwargs):
+        """iterate N times or until a 'good enough' solution is found"""
+        payload, start_response, body = self._get_response_context(args)
+
+        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            self.task_event = Event()
+
+            # HTTP response first, then initiate long-running task
+            start_response('200 OK', [('Content-Type', 'text/plain')])
+            body.put("Bokay\r\n")
+            body.put(StopIteration)
+
+            current_gen = payload["current_gen"]
+            fitness_cutoff = payload["fitness_cutoff"]
+            self._uow.next_generation(current_gen, fitness_cutoff)
+
+            self.task_event.set()
+            self.task_event = None
+        else:
+            self._bad_auth(payload, start_response, body)
+
+
+    def pop_enum (self, *args, **kwargs):
+        """enumerate the Individuals in this shard of the Population"""
+        payload, start_response, body = self._get_response_context(args)
+
+        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            fitness_cutoff = payload["fitness_cutoff"]
+
+            start_response('200 OK', [('Content-Type', 'application/json')])
+            body.put(dumps(self._uow.enum(fitness_cutoff)))
+            body.put("\r\n")
+            body.put(StopIteration)
+        else:
+            self._bad_auth(payload, start_response, body)
+
+
+    def pop_reify (self, *args, **kwargs):
+        """test/add a newly generated Individual into the Population (birth)"""
+        payload, start_response, body = self._get_response_context(args)
+
+        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            self.task_queue.put_nowait(payload)
+
+            start_response('200 OK', [('Content-Type', 'text/plain')])
+            body.put("Bokay\r\n")
+            body.put(StopIteration)
+        else:
+            self._bad_auth(payload, start_response, body)
+
+
 class Framework (object):
     def __init__ (self, ff_name, prefix="/tmp/exelixi"):
-        # system parameters, for representing operational state
-        self.ff_name = ff_name
-        self.feature_factory = instantiate_class(ff_name)
-
+        """initialize the system parameters, which represent operational state"""
         self.uuid = uuid1().hex
         self.prefix = prefix + "/" + self.uuid
         logging.info("prefix: %s", self.prefix)
 
         self._shard_assoc = None
+        self._ring = None
+        self._uow = Population(Individual(), ff_name, prefix=self.prefix)
 
 
     def _gen_shard_id (self, i, n):
@@ -460,7 +425,7 @@ class Framework (object):
 
 
     def set_exe_list (self, exe_list, exe_info=None):
-        """associate shards with executors"""
+        """associate shards with Executors"""
         self._shard_assoc = {}
 
         for i in xrange(len(exe_list)):
@@ -474,31 +439,41 @@ class Framework (object):
         logging.info("set executor list: %s", str(self._shard_assoc))
 
 
-    def send_exe_rest (self, path, base_msg):
-        """access a REST endpoint on each of the Executors"""
+    def send_ring_rest (self, path, base_msg):
+        """access a REST endpoint on each of the shards"""
         json_str = []
 
         for shard_id, (exe_uri, exe_info) in self._shard_assoc.items():
-            lines = post_exe_rest(self.prefix, shard_id, exe_uri, path, base_msg)
+            lines = post_distrib_rest(self.prefix, shard_id, exe_uri, path, base_msg)
             json_str.append(lines[0])
 
         return json_str
+
+
+    def shard_barrier (self):
+        """
+        implements a two-phase barrier to (1) wait until all shards
+        have finished sending task_queue requests, then (2) join on
+        each task_queue, to wait until it has emptied
+        """
+        self.send_ring_rest("shard/wait", {})
+        self.send_ring_rest("shard/join", {})
 
 
     def orchestrate (self):
         """orchestrate a unit of work distributed across the hash ring via REST endpoints"""
 
         # configure the shards and the hash ring
-        self.send_exe_rest("shard/config", {})
+        self.send_ring_rest("shard/config", {})
 
-        ring = { shard_id: exe_uri for shard_id, (exe_uri, exe_info) in self._shard_assoc.items() }
-        self.send_exe_rest("ring/init", { "ring": ring })
+        self._ring = { shard_id: exe_uri for shard_id, (exe_uri, exe_info) in self._shard_assoc.items() }
+        self.send_ring_rest("ring/init", { "ring": self._ring })
 
-        pop = Population(Individual(), self.ff_name, prefix=self.prefix)
-        pop.orchestrate(self)
+        # distribute the UnitOfWork tasks
+        self._uow.orchestrate(self)
 
         # shutdown
-        self.send_exe_rest("stop", {})
+        self.send_ring_rest("shard/stop", {})
 
 
 class SlaveInfo (object):

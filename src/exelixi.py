@@ -169,7 +169,7 @@ if __name__=='__main__':
             logging.info(x)
 
         try:
-            from sched import MesosScheduler
+            from resource import MesosScheduler
 
             master_uri = get_master_leader(args.master[0])
             exe_path = abspath(sys.argv[0])
@@ -198,7 +198,7 @@ if __name__=='__main__':
 
         try:
             svc = Worker(port=int(args.port[0]))
-            svc.start()
+            svc.shard_start()
         except KeyboardInterrupt:
             pass
 
@@ -206,7 +206,7 @@ if __name__=='__main__':
         logging.info("%s: running an Executor on an Apache Mesos slave", APP_NAME)
 
         try:
-            from sched import MesosExecutor
+            from resource import MesosExecutor
             MesosExecutor.run_executor()
         except ImportError as e:
             logging.critical("Python module 'mesos' has not been installed", exc_info=True)

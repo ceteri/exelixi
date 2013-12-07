@@ -42,7 +42,7 @@ def instantiate_class (class_path):
     return getattr(import_module(module_name), class_name)()
 
 
-def post_exe_rest (prefix, shard_id, exe_uri, path, base_msg):
+def post_distrib_rest (prefix, shard_id, exe_uri, path, base_msg):
     """POST a JSON-based message to a REST endpoint on a shard"""
     msg = base_msg.copy()
 
@@ -104,21 +104,25 @@ class Population (object):
         self._hash_ring = HashRing(exe_dict.keys())
 
 
+    def perform_task (self, payload):
+        """perform a task consumed from the Worker.task_queue"""
+        key = payload["key"]
+        gen = payload["gen"]
+        feature_set = payload["feature_set"]
+        self.receive_reify(key, gen, feature_set)
+
+
     def orchestrate (self, framework):
         """
         initialize a Population of unique Individuals at generation 0,
         then iterate N times or until a "good enough" solution is found
         """
 
-        framework.send_exe_rest("pop/init", { "ff_name": self.ff_name })
-        framework.send_exe_rest("pop/gen", {})
+        framework.send_ring_rest("pop/init", { "ff_name": self.ff_name })
+        framework.send_ring_rest("pop/gen", {})
 
         while True:
-            # test (1) wait until all shards have finished sending
-            # reify requests, then (2) join on each reify request
-            # queue, to wait until they have emptied
-            framework.send_exe_rest("pop/wait", {})
-            framework.send_exe_rest("pop/join", {})
+            framework.shard_barrier()
 
             if self.current_gen == self.feature_factory.n_gen:
                 break
@@ -127,7 +131,7 @@ class Population (object):
             self.total_indiv = 0
             hist = {}
 
-            for shard_msg in framework.send_exe_rest("pop/hist", {}):
+            for shard_msg in framework.send_ring_rest("pop/hist", {}):
                 logging.debug(shard_msg)
                 payload = loads(shard_msg)
                 self.total_indiv += payload["total_indiv"]
@@ -142,13 +146,13 @@ class Population (object):
             # apply fitness cutoff and breed "children" for the next
             # generation
             fitness_cutoff = self.get_fitness_cutoff(hist)
-            framework.send_exe_rest("pop/next", { "current_gen": self.current_gen, "fitness_cutoff": fitness_cutoff })
+            framework.send_ring_rest("pop/next", { "current_gen": self.current_gen, "fitness_cutoff": fitness_cutoff })
             self.current_gen += 1
 
         # report the best Individuals in the final result
         results = []
 
-        for l in framework.send_exe_rest("pop/enum", { "fitness_cutoff": fitness_cutoff }):
+        for l in framework.send_ring_rest("pop/enum", { "fitness_cutoff": fitness_cutoff }):
             results.extend(loads(l))
 
         results.sort(reverse=True)
@@ -184,10 +188,11 @@ class Population (object):
             if neighbor_shard_id != self._shard_id:
                 exe_uri = self._exe_dict[neighbor_shard_id]
 
-        # distribute this operation over the hash ring, through a remote queue
+        # distribute this operation over the hash ring, through a
+        # remote task_queue
         if exe_uri:
             msg = { "key": indiv.key, "gen": indiv.gen, "feature_set": loads(indiv.get_json_feature_set()) }
-            lines = post_exe_rest(self.prefix, neighbor_shard_id, exe_uri, "pop/reify", msg)
+            lines = post_distrib_rest(self.prefix, neighbor_shard_id, exe_uri, "pop/reify", msg)
             return False
         else:
             return self._reify_locally(indiv)
@@ -382,7 +387,7 @@ class Individual (object):
 
 
 if __name__=='__main__':
-    ## test on single node / single shard
+    ## test GA in standalone-mode, without distributed services
 
     # parse command line options
     if len(sys.argv) < 2:
@@ -390,7 +395,6 @@ if __name__=='__main__':
     else:
         ff_name = sys.argv[1]
 
-    ## test GA in standalone-mode, i.e., without a Framework or Executor
     ff = instantiate_class(ff_name)
 
     # initialize a Population of unique Individuals at generation 0
