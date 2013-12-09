@@ -26,7 +26,7 @@
 	<key>MasterSheets</key>
 	<array/>
 	<key>ModificationDate</key>
-	<string>2013-12-09 03:22:43 +0000</string>
+	<string>2013-12-09 03:33:19 +0000</string>
 	<key>Modifier</key>
 	<string>Paco Nathan</string>
 	<key>NotesVisible</key>
@@ -2253,6 +2253,50 @@ ring}</string>
 			<key>GraphicsList</key>
 			<array>
 				<dict>
+					<key>Class</key>
+					<string>LineGraphic</string>
+					<key>FontInfo</key>
+					<dict>
+						<key>Font</key>
+						<string>Helvetica</string>
+						<key>Size</key>
+						<real>10</real>
+					</dict>
+					<key>Head</key>
+					<dict>
+						<key>ID</key>
+						<integer>103</integer>
+					</dict>
+					<key>ID</key>
+					<integer>151</integer>
+					<key>Layer</key>
+					<integer>0</integer>
+					<key>Points</key>
+					<array>
+						<string>{469.63443647511957, 86.39662001453172}</string>
+						<string>{513.25517323298732, 85.982845558820756}</string>
+					</array>
+					<key>Style</key>
+					<dict>
+						<key>stroke</key>
+						<dict>
+							<key>HeadArrow</key>
+							<string>StickArrow</string>
+							<key>Legacy</key>
+							<true/>
+							<key>TailArrow</key>
+							<string>0</string>
+						</dict>
+					</dict>
+					<key>Tail</key>
+					<dict>
+						<key>ID</key>
+						<integer>100</integer>
+						<key>Info</key>
+						<integer>6</integer>
+					</dict>
+				</dict>
+				<dict>
 					<key>Bounds</key>
 					<string>{{541.10800451876287, 525.18283478429703}, {14.17322826385498, 14.17322826385498}}</string>
 					<key>Class</key>
@@ -2400,8 +2444,8 @@ executors}</string>
 {\colortbl;\red255\green255\blue255;}
 \pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\qc
 
-\f0\fs18 \cf0 release\
-resources}</string>
+\f0\fs18 \cf0 resources\
+released}</string>
 					</dict>
 				</dict>
 				<dict>
@@ -2995,7 +3039,7 @@ message}</string>
 				</dict>
 				<dict>
 					<key>Bounds</key>
-					<string>{{399.24645320328875, 242.17177932640112}, {70.866142272949219, 35.433071136474609}}</string>
+					<string>{{399.55848143559575, 242.17175769298541}, {70.866142272949219, 35.433071136474609}}</string>
 					<key>Class</key>
 					<string>ShapedGraphic</string>
 					<key>FontInfo</key>
@@ -3349,7 +3393,7 @@ resources}</string>
 				</dict>
 				<dict>
 					<key>Bounds</key>
-					<string>{{512.69635698366778, 73.285852126083753}, {70.866142272949219, 35.433071136474609}}</string>
+					<string>{{512.69635698366778, 73.946566576652444}, {70.866142272949219, 35.433071136474609}}</string>
 					<key>Class</key>
 					<string>ShapedGraphic</string>
 					<key>FontInfo</key>
@@ -3604,12 +3648,6 @@ scheduler}</string>
 					<integer>145</integer>
 					<key>Layer</key>
 					<integer>0</integer>
-					<key>OrthogonalBarAutomatic</key>
-					<true/>
-					<key>OrthogonalBarPoint</key>
-					<string>{0, 0}</string>
-					<key>OrthogonalBarPosition</key>
-					<real>-1</real>
 					<key>Points</key>
 					<array>
 						<string>{469.63443647511951, 478.09207045169421}</string>
@@ -3623,8 +3661,6 @@ scheduler}</string>
 							<string>StickArrow</string>
 							<key>Legacy</key>
 							<true/>
-							<key>LineType</key>
-							<integer>2</integer>
 							<key>TailArrow</key>
 							<string>0</string>
 						</dict>
@@ -3658,15 +3694,9 @@ scheduler}</string>
 					<integer>144</integer>
 					<key>Layer</key>
 					<integer>0</integer>
-					<key>OrthogonalBarAutomatic</key>
-					<true/>
-					<key>OrthogonalBarPoint</key>
-					<string>{0, 0}</string>
-					<key>OrthogonalBarPosition</key>
-					<real>-1</real>
 					<key>Points</key>
 					<array>
-						<string>{356.43454189864934, 478.09205268336933}</string>
+						<string>{356.43453066141444, 478.08968145201209}</string>
 						<string>{399.80526945260823, 477.67829474121532}</string>
 					</array>
 					<key>Style</key>
@@ -3677,8 +3707,6 @@ scheduler}</string>
 							<string>StickArrow</string>
 							<key>Legacy</key>
 							<true/>
-							<key>LineType</key>
-							<integer>2</integer>
 							<key>TailArrow</key>
 							<string>0</string>
 						</dict>
@@ -4114,12 +4142,6 @@ scheduler}</string>
 					<integer>129</integer>
 					<key>Layer</key>
 					<integer>0</integer>
-					<key>OrthogonalBarAutomatic</key>
-					<true/>
-					<key>OrthogonalBarPoint</key>
-					<string>{0, 0}</string>
-					<key>OrthogonalBarPosition</key>
-					<real>-1</real>
 					<key>Points</key>
 					<array>
 						<string>{400.11728307870686, 378.13391936104478}</string>
@@ -4133,8 +4155,6 @@ scheduler}</string>
 							<string>StickArrow</string>
 							<key>Legacy</key>
 							<true/>
-							<key>LineType</key>
-							<integer>2</integer>
 							<key>TailArrow</key>
 							<string>0</string>
 						</dict>
@@ -4222,12 +4242,6 @@ scheduler}</string>
 					<integer>125</integer>
 					<key>Layer</key>
 					<integer>0</integer>
-					<key>OrthogonalBarAutomatic</key>
-					<true/>
-					<key>OrthogonalBarPoint</key>
-					<string>{0, 0}</string>
-					<key>OrthogonalBarPosition</key>
-					<real>-1</real>
 					<key>Points</key>
 					<array>
 						<string>{583.08434025549855, 317.48579765250167}</string>
@@ -4241,8 +4255,6 @@ scheduler}</string>
 							<string>StickArrow</string>
 							<key>Legacy</key>
 							<true/>
-							<key>LineType</key>
-							<integer>2</integer>
 							<key>TailArrow</key>
 							<string>0</string>
 						</dict>
@@ -4276,12 +4288,6 @@ scheduler}</string>
 					<integer>123</integer>
 					<key>Layer</key>
 					<integer>0</integer>
-					<key>OrthogonalBarAutomatic</key>
-					<true/>
-					<key>OrthogonalBarPoint</key>
-					<string>{0, 0}</string>
-					<key>OrthogonalBarPosition</key>
-					<real>-1</real>
 					<key>Points</key>
 					<array>
 						<string>{469.63443647511951, 317.48578474841844}</string>
@@ -4295,8 +4301,6 @@ scheduler}</string>
 							<string>StickArrow</string>
 							<key>Legacy</key>
 							<true/>
-							<key>LineType</key>
-							<integer>2</integer>
 							<key>TailArrow</key>
 							<string>0</string>
 						</dict>
@@ -4330,15 +4334,9 @@ scheduler}</string>
 					<integer>121</integer>
 					<key>Layer</key>
 					<integer>0</integer>
-					<key>OrthogonalBarAutomatic</key>
-					<true/>
-					<key>OrthogonalBarPoint</key>
-					<string>{0, 0}</string>
-					<key>OrthogonalBarPosition</key>
-					<real>-1</real>
 					<key>Points</key>
 					<array>
-						<string>{358.14050947175787, 317.48578876833921}</string>
+						<string>{358.14049729941837, 317.48332090509962}</string>
 						<string>{399.80526945260823, 317.07200903793955}</string>
 					</array>
 					<key>Style</key>
@@ -4349,8 +4347,6 @@ scheduler}</string>
 							<string>StickArrow</string>
 							<key>Legacy</key>
 							<true/>
-							<key>LineType</key>
-							<integer>2</integer>
 							<key>TailArrow</key>
 							<string>0</string>
 						</dict>
@@ -4434,15 +4430,9 @@ scheduler}</string>
 					<integer>116</integer>
 					<key>Layer</key>
 					<integer>0</integer>
-					<key>OrthogonalBarAutomatic</key>
-					<true/>
-					<key>OrthogonalBarPoint</key>
-					<string>{0, 0}</string>
-					<key>OrthogonalBarPosition</key>
-					<real>-1</real>
 					<key>Points</key>
 					<array>
-						<string>{399.80526945260823, 254.20805830856943}</string>
+						<string>{400.11729768491523, 254.20803667515372}</string>
 						<string>{357.89051647517704, 254.62181216250596}</string>
 					</array>
 					<key>Style</key>
@@ -4453,8 +4443,6 @@ scheduler}</string>
 							<string>StickArrow</string>
 							<key>Legacy</key>
 							<true/>
-							<key>LineType</key>
-							<integer>2</integer>
 							<key>TailArrow</key>
 							<string>0</string>
 						</dict>
@@ -4497,7 +4485,7 @@ scheduler}</string>
 					<key>Points</key>
 					<array>
 						<string>{547.7955953226774, 222.52449229136721}</string>
-						<string>{469.63443647511957, 254.62183401904829}</string>
+						<string>{469.94646470742657, 254.62181238563258}</string>
 					</array>
 					<key>Style</key>
 					<dict>
@@ -4596,12 +4584,6 @@ scheduler}</string>
 					<integer>111</integer>
 					<key>Layer</key>
 					<integer>0</integer>
-					<key>OrthogonalBarAutomatic</key>
-					<true/>
-					<key>OrthogonalBarPoint</key>
-					<string>{0, 0}</string>
-					<key>OrthogonalBarPosition</key>
-					<real>-1</real>
 					<key>Points</key>
 					<array>
 						<string>{469.63443647511957, 199.54146788440474}</string>
@@ -4615,8 +4597,6 @@ scheduler}</string>
 							<string>StickArrow</string>
 							<key>Legacy</key>
 							<true/>
-							<key>LineType</key>
-							<integer>2</integer>
 							<key>TailArrow</key>
 							<string>0</string>
 						</dict>
@@ -4650,12 +4630,6 @@ scheduler}</string>
 					<integer>108</integer>
 					<key>Layer</key>
 					<integer>0</integer>
-					<key>OrthogonalBarAutomatic</key>
-					<true/>
-					<key>OrthogonalBarPoint</key>
-					<string>{0, 0}</string>
-					<key>OrthogonalBarPosition</key>
-					<real>-1</real>
 					<key>Points</key>
 					<array>
 						<string>{399.80526945260823, 144.28673643967295}</string>
@@ -4669,8 +4643,6 @@ scheduler}</string>
 							<string>StickArrow</string>
 							<key>Legacy</key>
 							<true/>
-							<key>LineType</key>
-							<integer>2</integer>
 							<key>TailArrow</key>
 							<string>0</string>
 						</dict>
@@ -4710,7 +4682,7 @@ scheduler}</string>
 					<real>-1</real>
 					<key>Points</key>
 					<array>
-						<string>{548.12941629307898, 108.71892326255835}</string>
+						<string>{548.12941629307898, 109.37963771312707}</string>
 						<string>{469.63443647511957, 144.70051215015181}</string>
 					</array>
 					<key>Style</key>
@@ -4762,8 +4734,8 @@ scheduler}</string>
 					<real>-1</real>
 					<key>Points</key>
 					<array>
-						<string>{548.1294300913197, 51.673239676497005}</string>
-						<string>{548.1294300913197, 73.285852126083753}</string>
+						<string>{548.1294300913197, 51.673239661710021}</string>
+						<string>{548.1294300913197, 73.696566576031543}</string>
 					</array>
 					<key>Style</key>
 					<dict>
@@ -4840,12 +4812,6 @@ scheduler}</string>
 					<integer>101</integer>
 					<key>Layer</key>
 					<integer>0</integer>
-					<key>OrthogonalBarAutomatic</key>
-					<true/>
-					<key>OrthogonalBarPoint</key>
-					<string>{0, 0}</string>
-					<key>OrthogonalBarPosition</key>
-					<real>-1</real>
 					<key>Points</key>
 					<array>
 						<string>{357.89053108138523, 85.735906818730925}</string>
@@ -4859,8 +4825,6 @@ scheduler}</string>
 							<string>StickArrow</string>
 							<key>Legacy</key>
 							<true/>
-							<key>LineType</key>
-							<integer>2</integer>
 							<key>TailArrow</key>
 							<string>0</string>
 						</dict>
@@ -5435,7 +5399,7 @@ scheduler}</string>
 	<key>WindowInfo</key>
 	<dict>
 		<key>CurrentSheet</key>
-		<integer>0</integer>
+		<integer>2</integer>
 		<key>ExpandedCanvases</key>
 		<array>
 			<dict>
