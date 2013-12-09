@@ -3,7 +3,9 @@
 <b>Exelixi</b> is a distributed framework for running [genetic algorithms] at scale.
 The framework is based on [Apache Mesos] and the code is mostly implemented in Python.
 
-Please see the [project wiki](https://github.com/ceteri/exelixi/wiki) for more details.
+Please see the [project wiki](https://github.com/ceteri/exelixi/wiki) for more details,
+including a [tutorial](https://github.com/ceteri/exelixi/wiki/Tutorial:-Fog-Computing-at-Hella-Scale)
+on how to build Mesos-based frameworks.
 
 
 ### Quick Start
@@ -40,7 +42,7 @@ On the master, download the <code>master</code> branch of the <b>Exelixi</b> cod
     ./bin/local_install.sh
 
 If you've customized the code by forking your own GitHub code repo, then substitute that download URL instead.
-Alternatively, if you've customized by subclassing the <code>run.FeatureFactory</code> default [GA],
+Alternatively, if you've customized by subclassing the <code>uow.UnitOfWorkFactory</code> default [GA],
 then place that Python source file into the <code>src/</code> subdirectory.
 
 Next, run the installation command on the master, to set up each of the slaves:

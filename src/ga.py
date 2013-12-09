@@ -17,9 +17,9 @@
 # https://github.com/ceteri/exelixi
 
 
-from gevent import Greenlet
 from bloomfilter import BloomFilter
 from collections import Counter
+from gevent import Greenlet
 from hashlib import sha224
 from hashring import HashRing
 from json import dumps, loads
@@ -34,10 +34,10 @@ import sys
 ## class definitions
 
 class Population (UnitOfWork):
-    def __init__ (self, indiv_instance, ff_name, prefix="/tmp/exelixi"):
+    def __init__ (self, indiv_instance, uow_name, prefix="/tmp/exelixi"):
         self.indiv_class = indiv_instance.__class__
-        self.ff_name = ff_name
-        self.feature_factory = instantiate_class(ff_name)
+        self.uow_name = uow_name
+        self.feature_factory = instantiate_class(uow_name)
 
         self.prefix = prefix
         self._shard_id = None
@@ -382,14 +382,14 @@ if __name__=='__main__':
 
     # parse command line options
     if len(sys.argv) < 2:
-        ff_name = "run.FeatureFactory"
+        uow_name = "uow.UnitOfWorkFactory"
     else:
-        ff_name = sys.argv[1]
+        uow_name = sys.argv[1]
 
-    ff = instantiate_class(ff_name)
+    ff = instantiate_class(uow_name)
 
     # initialize a Population of unique Individuals at generation 0
-    pop = Population(Individual(), ff_name, prefix="/tmp/exelixi")
+    pop = Population(Individual(), uow_name, prefix="/tmp/exelixi")
     pop.populate(pop.current_gen)
 
     # iterate N times or until a "good enough" solution is found

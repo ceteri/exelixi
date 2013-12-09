@@ -118,8 +118,8 @@ def parse_cli_args ():
     group5.add_argument("-n", "--nodes", nargs="?", metavar="HOST:PORT",
                         help="location for one of the masters")
 
-    parser.add_argument("--feature", nargs=1, metavar="PKG.CLASS", default=["run.FeatureFactory"],
-                        help="extension of FeatureFactory class to use for GA parameters and customizations")
+    parser.add_argument("--uow", nargs=1, metavar="PKG.CLASS", default=["uow.UnitOfWorkFactory"],
+                        help="subclassed UnitOfWork definitions")
 
     parser.add_argument("--prefix", nargs=1, default=["hdfs://exelixi"],
                         help="path prefix for durable storage")
@@ -153,11 +153,11 @@ if __name__=='__main__':
                         )
     logging.debug(args)
 
-    # report settings for optional features
+    # report settings for options
     opts = []
 
-    if args.feature:
-        opts.append(" ...using %s for the GA parameters and customizations" % (args.feature[0]))
+    if args.uow:
+        opts.append(" ...using %s for the UnitOfWork definitions" % (args.uow[0]))
 
     if args.prefix:
         opts.append(" ...using %s for the path prefix in durable storage" % (args.prefix[0]))
@@ -177,7 +177,7 @@ if __name__=='__main__':
             exe_path = abspath(sys.argv[0])
 
             # run Mesos driver to launch Framework and manage resource offers
-            driver = MesosScheduler.start_framework(master_uri, exe_path, args.executors[0], args.feature[0], args.prefix[0], args.cpu[0], args.mem[0])
+            driver = MesosScheduler.start_framework(master_uri, exe_path, args.executors[0], args.uow[0], args.prefix[0], args.cpu[0], args.mem[0])
             MesosScheduler.stop_framework(driver)
         except ImportError as e:
             logging.critical("Python module 'mesos' has not been installed", exc_info=True)
@@ -191,7 +191,7 @@ if __name__=='__main__':
             logging.info(x)
 
         # run Framework orchestration via REST endpoints on the Executors
-        fra = Framework(args.feature[0], args.prefix[0])
+        fra = Framework(args.uow[0], args.prefix[0])
         fra.set_exe_list(args.slaves)
         fra.orchestrate()
 

@@ -26,7 +26,7 @@ import logging
 ######################################################################
 ## class definitions
 
-class FeatureFactory (object):
+class UnitOfWorkFactory (object):
     def __init__ (self):
         ## NB: override these GA parameters
         self.n_pop = 23
@@ -44,10 +44,10 @@ class FeatureFactory (object):
         self.target = 231
 
 
-    def instantiate_uow (self, ff_name, prefix):
-        """instantiate a UnitOfWork, so that the services are decoupled from the GA"""
+    def instantiate_uow (self, uow_name, prefix):
+        """instantiate a UnitOfWork, to decouple services from the GA problem domain"""
         ## NB: override this fitness function
-        return Population(Individual(), ff_name, prefix)
+        return Population(Individual(), uow_name, prefix)
 
 
     def get_fitness (self, feature_set):
@@ -130,7 +130,7 @@ class FeatureFactory (object):
 
 if __name__=='__main__':
     # a simple test
-    ff_name = "run.FeatureFactory"
-    ff = instantiate_class(ff_name)
+    uow_name = "uow.UnitOfWorkFactory"
+    uow = instantiate_class(uow_name)
 
-    print ff
+    print uow

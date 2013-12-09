@@ -121,11 +121,12 @@ class Worker (object):
             self.prefix = payload["prefix"]
             self.shard_id = payload["shard_id"]
 
-            ff_name = payload["ff_name"]
-            logging.info("initializing population based on %s", ff_name)
+            # dependency injection for UnitOfWork
+            uow_name = payload["uow_name"]
+            logging.info("initializing unit of work based on %s", uow_name)
 
-            ff = instantiate_class(ff_name)
-            self._uow = ff.instantiate_uow(ff_name, self.prefix)
+            ff = instantiate_class(uow_name)
+            self._uow = ff.instantiate_uow(uow_name, self.prefix)
 
             start_response('200 OK', [('Content-Type', 'text/plain')])
             body.put("Bokay\r\n")
@@ -279,6 +280,7 @@ class Worker (object):
             self._uow.set_ring(self.shard_id, self.ring)
 
             # prepare task_queue for another set of distributed tasks
+            # WORKER
             self.task_queue = JoinableQueue()
             spawn(self.queue_consumer)
 
@@ -294,6 +296,7 @@ class Worker (object):
         payload, start_response, body = self._get_response_context(args)
 
         if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            # WORKER
             self.task_event = Event()
 
             # HTTP response first, then initiate long-running task
@@ -303,6 +306,7 @@ class Worker (object):
 
             self._uow.populate(0)
 
+            # WORKER
             self.task_event.set()
             self.task_event = None
         else:
@@ -327,6 +331,7 @@ class Worker (object):
         payload, start_response, body = self._get_response_context(args)
 
         if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            # WORKER
             self.task_event = Event()
 
             # HTTP response first, then initiate long-running task
@@ -338,6 +343,7 @@ class Worker (object):
             fitness_cutoff = payload["fitness_cutoff"]
             self._uow.next_generation(current_gen, fitness_cutoff)
 
+            # WORKER
             self.task_event.set()
             self.task_event = None
         else:
@@ -364,6 +370,7 @@ class Worker (object):
         payload, start_response, body = self._get_response_context(args)
 
         if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            # WORKER
             self.task_queue.put_nowait(payload)
 
             start_response('200 OK', [('Content-Type', 'text/plain')])
@@ -374,16 +381,18 @@ class Worker (object):
 
 
 class Framework (object):
-    def __init__ (self, ff_name, prefix="/tmp/exelixi"):
+    def __init__ (self, uow_name, prefix="/tmp/exelixi"):
         """initialize the system parameters, which represent operational state"""
         self.uuid = uuid1().hex
         self.prefix = prefix + "/" + self.uuid
         logging.info("prefix: %s", self.prefix)
 
-        print ff_name
-        self.ff_name = ff_name
-        ff = instantiate_class(self.ff_name)
-        self._uow = ff.instantiate_uow(self.ff_name, self.prefix)
+        # dependency injection for UnitOfWork
+        self.uow_name = uow_name
+        logging.info("initializing unit of work based on %s", uow_name)
+
+        ff = instantiate_class(self.uow_name)
+        self._uow = ff.instantiate_uow(self.uow_name, self.prefix)
 
         self._shard_assoc = None
         self._ring = None
@@ -436,7 +445,7 @@ class Framework (object):
         """orchestrate a unit of work distributed across the hash ring via REST endpoints"""
 
         # configure the shards and the hash ring
-        self.send_ring_rest("shard/config", { "ff_name": self.ff_name })
+        self.send_ring_rest("shard/config", { "uow_name": self.uow_name })
 
         self._ring = { shard_id: exe_uri for shard_id, (exe_uri, exe_info) in self._shard_assoc.items() }
         self.send_ring_rest("ring/init", { "ring": self._ring })
@@ -491,10 +500,10 @@ if __name__=='__main__':
         sys.exit(1)
 
     exe_uri = sys.argv[1]
-    ff_name = sys.argv[2]
+    uow_name = sys.argv[2]
 
-    fra = Framework(ff_name)
-    print "framework launching at %s based on %s..." % (fra.prefix, ff_name)
+    fra = Framework(uow_name)
+    print "framework launching based on %s stored at %s..." % (fra.uow_name, fra.prefix)
 
     fra.set_exe_list([exe_uri])
     fra.orchestrate()
