@@ -121,6 +121,12 @@ class Worker (object):
             self.prefix = payload["prefix"]
             self.shard_id = payload["shard_id"]
 
+            ff_name = payload["ff_name"]
+            logging.info("initializing population based on %s", ff_name)
+
+            ff = instantiate_class(ff_name)
+            self._uow = ff.instantiate_uow(ff_name, self.prefix)
+
             start_response('200 OK', [('Content-Type', 'text/plain')])
             body.put("Bokay\r\n")
             body.put(StopIteration)
@@ -185,15 +191,9 @@ class Worker (object):
         body = JoinableQueue()
 
         ##########################################
-        # UnitOfWork endpoints
-
-        if self.handle_endpoints(uri_path, env, start_response, body):
-            pass
-
-        ##########################################
         # Worker endpoints
 
-        elif uri_path == '/shard/config':
+        if uri_path == '/shard/config':
             # configure the service to run a shard
             Greenlet(self.shard_config, env, start_response, body).start()
 
@@ -256,6 +256,9 @@ class Worker (object):
             body.put(str(env) + "\r\n")
             body.put(StopIteration)
 
+        elif self._uow and self._uow.handle_endpoints(self, uri_path, env, start_response, body):
+            pass
+
         else:
             # ne znayu
             start_response('404 Not Found', [('Content-Type', 'text/plain')])
@@ -268,46 +271,11 @@ class Worker (object):
     ######################################################################
     ## NB: TODO refactor GA-specific code into UnitOfWork design pattern
 
-    def handle_endpoints (self, uri_path, env, start_response, body):
-        """UnitOfWork REST endpoints"""
-        if uri_path == '/pop/init':
-            # initialize the Population subset on this shard
-            Greenlet(self.pop_init, env, start_response, body).start()
-            return True
-        elif uri_path == '/pop/gen':
-            # create generation 0 in this shard
-            Greenlet(self.pop_gen, env, start_response, body).start()
-            return True
-        elif uri_path == '/pop/hist':
-            # calculate a partial histogram for the fitness distribution
-            Greenlet(self.pop_hist, env, start_response, body).start()
-            return True
-        elif uri_path == '/pop/next':
-            # attempt to run another generation
-            Greenlet(self.pop_next, env, start_response, body).start()
-            return True
-        elif uri_path == '/pop/enum':
-            # enumerate the Individuals in this shard of the Population
-            Greenlet(self.pop_enum, env, start_response, body).start()
-            return True
-        elif uri_path == '/pop/reify':
-            # test/add a new Individual into the Population (birth)
-            Greenlet(self.pop_reify, env, start_response, body).start()
-            return True
-        else:
-            return False
-
-
     def pop_init (self, *args, **kwargs):
         """initialize a Population of unique Individuals on this shard"""
         payload, start_response, body = self._get_response_context(args)
 
         if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
-            ff_name = payload["ff_name"]
-            logging.info("initializing population based on %s", ff_name)
-
-            ff = instantiate_class(ff_name)
-            self._uow = ff.instantiate_uow(ff_name, self.prefix)
             self._uow.set_ring(self.shard_id, self.ring)
 
             # prepare task_queue for another set of distributed tasks
@@ -412,10 +380,13 @@ class Framework (object):
         self.prefix = prefix + "/" + self.uuid
         logging.info("prefix: %s", self.prefix)
 
+        print ff_name
+        self.ff_name = ff_name
+        ff = instantiate_class(self.ff_name)
+        self._uow = ff.instantiate_uow(self.ff_name, self.prefix)
+
         self._shard_assoc = None
         self._ring = None
-        ff = instantiate_class(ff_name)
-        self._uow = ff.instantiate_uow(ff_name, self.prefix)
 
 
     def _gen_shard_id (self, i, n):
@@ -465,7 +436,7 @@ class Framework (object):
         """orchestrate a unit of work distributed across the hash ring via REST endpoints"""
 
         # configure the shards and the hash ring
-        self.send_ring_rest("shard/config", {})
+        self.send_ring_rest("shard/config", { "ff_name": self.ff_name })
 
         self._ring = { shard_id: exe_uri for shard_id, (exe_uri, exe_info) in self._shard_assoc.items() }
         self.send_ring_rest("ring/init", { "ring": self._ring })

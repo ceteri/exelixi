@@ -17,6 +17,7 @@
 # https://github.com/ceteri/exelixi
 
 
+from gevent import Greenlet
 from bloomfilter import BloomFilter
 from collections import Counter
 from hashlib import sha224
@@ -78,7 +79,7 @@ class Population (UnitOfWork):
         then iterate N times or until a "good enough" solution is found
         """
 
-        framework.send_ring_rest("pop/init", { "ff_name": self.ff_name })
+        framework.send_ring_rest("pop/init", {})
         framework.send_ring_rest("pop/gen", {})
 
         while True:
@@ -124,7 +125,32 @@ class Population (UnitOfWork):
 
     def handle_endpoints (self, worker, uri_path, env, start_response, body):
         """UnitOfWork REST endpoints"""
-        pass
+        if uri_path == '/pop/init':
+            # initialize the Population subset on this shard
+            Greenlet(worker.pop_init, env, start_response, body).start()
+            return True
+        elif uri_path == '/pop/gen':
+            # create generation 0 in this shard
+            Greenlet(worker.pop_gen, env, start_response, body).start()
+            return True
+        elif uri_path == '/pop/hist':
+            # calculate a partial histogram for the fitness distribution
+            Greenlet(worker.pop_hist, env, start_response, body).start()
+            return True
+        elif uri_path == '/pop/next':
+            # attempt to run another generation
+            Greenlet(worker.pop_next, env, start_response, body).start()
+            return True
+        elif uri_path == '/pop/enum':
+            # enumerate the Individuals in this shard of the Population
+            Greenlet(worker.pop_enum, env, start_response, body).start()
+            return True
+        elif uri_path == '/pop/reify':
+            # test/add a new Individual into the Population (birth)
+            Greenlet(worker.pop_reify, env, start_response, body).start()
+            return True
+        else:
+            return False
 
 
     ######################################################################
