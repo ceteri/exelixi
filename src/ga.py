@@ -34,35 +34,15 @@ import sys
 ## class definitions
 
 class Population (UnitOfWork):
-    def __init__ (self, indiv_instance, uow_name, prefix="/tmp/exelixi"):
+    def __init__ (self, uow_name, prefix, indiv_instance):
+        super(Population, self).__init__(uow_name, prefix)
+
         self.indiv_class = indiv_instance.__class__
-        self.uow_name = uow_name
-        self.feature_factory = instantiate_class(uow_name)
-
-        self.prefix = prefix
-        self._shard_id = None
-        self._exe_dict = None
-        self._hash_ring = None
-
-        self.n_pop = self.feature_factory.n_pop
         self.total_indiv = 0
         self.current_gen = 0
 
-        self._term_limit = self.feature_factory.term_limit
-        self._hist_granularity = self.feature_factory.hist_granularity
-
-        self._selection_rate = self.feature_factory.selection_rate
-        self._mutation_rate = self.feature_factory.mutation_rate
-
         self._shard = {}
         self._bf = BloomFilter(num_bytes=125, num_probes=14, iterable=[])
-
-
-    def set_ring (self, shard_id, exe_dict):
-        """initialize the HashRing"""
-        self._shard_id = shard_id
-        self._exe_dict = exe_dict
-        self._hash_ring = HashRing(exe_dict.keys())
 
 
     def perform_task (self, payload):
@@ -78,14 +58,13 @@ class Population (UnitOfWork):
         initialize a Population of unique Individuals at generation 0,
         then iterate N times or until a "good enough" solution is found
         """
-
         framework.send_ring_rest("pop/init", {})
         framework.send_ring_rest("pop/gen", {})
 
         while True:
-            framework.shard_barrier()
+            framework.phase_barrier()
 
-            if self.current_gen == self.feature_factory.n_gen:
+            if self.current_gen == self.uow_factory.n_gen:
                 break
 
             # determine the fitness cutoff threshold
@@ -124,33 +103,126 @@ class Population (UnitOfWork):
 
 
     def handle_endpoints (self, worker, uri_path, env, start_response, body):
-        """UnitOfWork REST endpoints"""
+        """UnitOfWork REST endpoints, delegated from the Worker"""
         if uri_path == '/pop/init':
             # initialize the Population subset on this shard
-            Greenlet(worker.pop_init, env, start_response, body).start()
+            Greenlet(self.pop_init, worker, env, start_response, body).start()
             return True
         elif uri_path == '/pop/gen':
             # create generation 0 in this shard
-            Greenlet(worker.pop_gen, env, start_response, body).start()
+            Greenlet(self.pop_gen, worker, env, start_response, body).start()
             return True
         elif uri_path == '/pop/hist':
             # calculate a partial histogram for the fitness distribution
-            Greenlet(worker.pop_hist, env, start_response, body).start()
+            Greenlet(self.pop_hist, worker, env, start_response, body).start()
             return True
         elif uri_path == '/pop/next':
             # attempt to run another generation
-            Greenlet(worker.pop_next, env, start_response, body).start()
+            Greenlet(self.pop_next, worker, env, start_response, body).start()
             return True
         elif uri_path == '/pop/enum':
             # enumerate the Individuals in this shard of the Population
-            Greenlet(worker.pop_enum, env, start_response, body).start()
+            Greenlet(self.pop_enum, worker, env, start_response, body).start()
             return True
         elif uri_path == '/pop/reify':
             # test/add a new Individual into the Population (birth)
-            Greenlet(worker.pop_reify, env, start_response, body).start()
+            Greenlet(self.pop_reify, worker, env, start_response, body).start()
             return True
         else:
             return False
+
+
+    ######################################################################
+    ## GA-specific REST endpoints implemented as gevent coroutines
+
+    def pop_init (self, *args, **kwargs):
+        """initialize a Population of unique Individuals on this shard"""
+        worker = args[0]
+        payload, start_response, body = worker.get_response_context(args[1:])
+
+        if worker.auth_request(payload, start_response, body):
+            self.set_ring(worker.shard_id, worker.ring)
+            worker.prep_task_queue()
+
+            start_response('200 OK', [('Content-Type', 'text/plain')])
+            body.put("Bokay\r\n")
+            body.put(StopIteration)
+
+
+    def pop_gen (self, *args, **kwargs):
+        """create generation 0 of Individuals in this shard of the Population"""
+        worker = args[0]
+        payload, start_response, body = worker.get_response_context(args[1:])
+
+        if worker.auth_request(payload, start_response, body):
+            worker.init_task_event()
+
+            # HTTP response first, then initiate long-running task
+            start_response('200 OK', [('Content-Type', 'text/plain')])
+            body.put("Bokay\r\n")
+            body.put(StopIteration)
+
+            self.populate(0)
+            worker.done_task_event()
+
+
+    def pop_hist (self, *args, **kwargs):
+        """calculate a partial histogram for the fitness distribution"""
+        worker = args[0]
+        payload, start_response, body = worker.get_response_context(args[1:])
+
+        if worker.auth_request(payload, start_response, body):
+            start_response('200 OK', [('Content-Type', 'application/json')])
+            body.put(dumps({ "total_indiv": self.total_indiv, "hist": self.get_part_hist() }))
+            body.put("\r\n")
+            body.put(StopIteration)
+
+
+    def pop_next (self, *args, **kwargs):
+        """iterate N times or until a 'good enough' solution is found"""
+        worker = args[0]
+        payload, start_response, body = worker.get_response_context(args[1:])
+
+        if worker.auth_request(payload, start_response, body):
+            worker.init_task_event()
+
+            # HTTP response first, then initiate long-running task
+            start_response('200 OK', [('Content-Type', 'text/plain')])
+            body.put("Bokay\r\n")
+            body.put(StopIteration)
+
+            current_gen = payload["current_gen"]
+            fitness_cutoff = payload["fitness_cutoff"]
+            self.next_generation(current_gen, fitness_cutoff)
+
+            worker.done_task_event()
+
+
+    def pop_enum (self, *args, **kwargs):
+        """enumerate the Individuals in this shard of the Population"""
+        worker = args[0]
+        payload, start_response, body = worker.get_response_context(args[1:])
+
+        if worker.auth_request(payload, start_response, body):
+            fitness_cutoff = payload["fitness_cutoff"]
+
+            start_response('200 OK', [('Content-Type', 'application/json')])
+            body.put(dumps(self.enum(fitness_cutoff)))
+            body.put("\r\n")
+            body.put(StopIteration)
+
+
+    def pop_reify (self, *args, **kwargs):
+        """test/add a newly generated Individual into the Population (birth)"""
+        worker = args[0]
+        payload, start_response, body = worker.get_response_context(args[1:])
+
+        if worker.auth_request(payload, start_response, body):
+            worker.put_task_queue(payload)
+
+            start_response('200 OK', [('Content-Type', 'text/plain')])
+            body.put("Bokay\r\n")
+            body.put(StopIteration)
 
 
     ######################################################################
@@ -158,10 +230,10 @@ class Population (UnitOfWork):
 
     def populate (self, current_gen):
         """initialize the population"""
-        for _ in xrange(self.n_pop):
+        for _ in xrange(self.uow_factory.n_pop):
             # constructor pattern
             indiv = self.indiv_class()
-            indiv.populate(current_gen, self.feature_factory.generate_features())
+            indiv.populate(current_gen, self.uow_factory.generate_features())
 
             # add the generated Individual to the Population
             # failure semantics: must filter nulls from initial population
@@ -171,19 +243,21 @@ class Population (UnitOfWork):
     def reify (self, indiv):
         """test/add a newly generated Individual into the Population (birth)"""
         neighbor_shard_id = None
-        exe_uri = None
+        shard_uri = None
 
         if self._hash_ring:
             neighbor_shard_id = self._hash_ring.get_node(indiv.key)
 
             if neighbor_shard_id != self._shard_id:
-                exe_uri = self._exe_dict[neighbor_shard_id]
+                shard_uri = self._shard_dict[neighbor_shard_id]
 
-        # distribute this operation over the hash ring, through a
-        # remote task_queue
-        if exe_uri:
+        # distribute the tasks in this phase throughout the HashRing,
+        # using a remote task_queue with synchronization based on a
+        # barrier pattern
+
+        if shard_uri:
             msg = { "key": indiv.key, "gen": indiv.gen, "feature_set": loads(indiv.get_json_feature_set()) }
-            lines = post_distrib_rest(self.prefix, neighbor_shard_id, exe_uri, "pop/reify", msg)
+            lines = post_distrib_rest(self.prefix, neighbor_shard_id, shard_uri, "pop/reify", msg)
             return False
         else:
             return self._reify_locally(indiv)
@@ -203,7 +277,7 @@ class Population (UnitOfWork):
             self.total_indiv += 1
 
             # potentially the most expensive operation, deferred until remote reification
-            indiv.get_fitness(self.feature_factory, force=True)
+            indiv.get_fitness(self.uow_factory, force=True)
             self._shard[indiv.key] = indiv
 
             return True
@@ -223,7 +297,8 @@ class Population (UnitOfWork):
 
     def get_part_hist (self):
         """tally counts for the partial histogram of the fitness distribution"""
-        d = (Counter([ round(indiv.get_fitness(self.feature_factory, force=False), self._hist_granularity) for indiv in self._shard.values() ])).items()
+        l = [ round(indiv.get_fitness(self.uow_factory, force=False), self.uow_factory.hist_granularity) for indiv in self._shard.values() ]
+        d = (Counter(l)).items()
         d.sort(reverse=True)
         return d
 
@@ -253,7 +328,7 @@ class Population (UnitOfWork):
 
             part_sum += count
             percentile = part_sum / float(n_indiv)
-            break_next = percentile >= self._selection_rate
+            break_next = percentile >= self.uow_factory.selection_rate
 
         logging.debug("fit: percentile %f part_sum %d n_indiv %d bin %f", percentile, part_sum, n_indiv, bin)
         return bin
@@ -266,8 +341,8 @@ class Population (UnitOfWork):
 
     def _boost_diversity (self, current_gen, indiv):
         """randomly select other individuals and mutate them, to promote genetic diversity"""
-        if self._mutation_rate > random():
-            indiv.mutate(self, current_gen, self.feature_factory)
+        if self.uow_factory.mutation_rate > random():
+            indiv.mutate(self, current_gen, self.uow_factory)
         elif len(self._shard.values()) >= 3:
             # NB: ensure that at least three parents remain in each
             # shard per generation
@@ -276,7 +351,7 @@ class Population (UnitOfWork):
 
     def _select_parents (self, current_gen, fitness_cutoff):
         """select the parents for the next generation"""
-        partition = map(lambda x: (round(x.get_fitness(), self._hist_granularity) >= fitness_cutoff, x), self._shard.values())
+        partition = map(lambda x: (round(x.get_fitness(), self.uow_factory.hist_granularity) >= fitness_cutoff, x), self._shard.values())
         good_fit = map(lambda x: x[1], filter(lambda x: x[0], partition))
         poor_fit = map(lambda x: x[1], filter(lambda x: not x[0], partition))
 
@@ -292,15 +367,15 @@ class Population (UnitOfWork):
         """select/mutate/crossover parents to produce a new generation"""
         parents = self._select_parents(current_gen, fitness_cutoff)
 
-        for _ in xrange(self.n_pop - len(parents)):
+        for _ in xrange(self.uow_factory.n_pop - len(parents)):
             f, m = sample(parents, 2) 
-            success = f.breed(self, current_gen, m, self.feature_factory)
+            success = f.breed(self, current_gen, m, self.uow_factory)
 
-        # backfill to avoid the dreaded Population collapse
-        for _ in xrange(self.n_pop - len(self._shard.values())):
+        # backfill to replenish / avoid the dreaded Population collapse
+        for _ in xrange(self.uow_factory.n_pop - len(self._shard.values())):
             # constructor pattern
             indiv = self.indiv_class()
-            indiv.populate(current_gen, self.feature_factory.generate_features())
+            indiv.populate(current_gen, self.uow_factory.generate_features())
             self.reify(indiv)
 
         logging.info("gen\t%d\tshard\t%s\tsize\t%d\ttotal\t%d", current_gen, self._shard_id, len(self._shard.values()), self.total_indiv)
@@ -308,7 +383,7 @@ class Population (UnitOfWork):
 
     def test_termination (self, current_gen, hist):
         """evaluate the terminating condition for this generation and report progress"""
-        return self.feature_factory.test_termination(current_gen, self._term_limit, hist, self.total_indiv)
+        return self.uow_factory.test_termination(current_gen, self.uow_factory.term_limit, hist, self.total_indiv)
 
 
     def enum (self, fitness_cutoff):
@@ -326,11 +401,11 @@ class Individual (object):
         self._fitness = None
 
 
-    def get_fitness (self, feature_factory=None, force=False):
+    def get_fitness (self, uow_factory=None, force=False):
         """determine the fitness ranging [0.0, 1.0]; higher is better"""
-        if feature_factory and feature_factory.use_force(force):
+        if uow_factory and uow_factory.use_force(force):
             # potentially the most expensive operation, deferred with careful consideration
-            self._fitness = feature_factory.get_fitness(self._feature_set)
+            self._fitness = uow_factory.get_fitness(self._feature_set)
 
         return self._fitness
 
@@ -351,11 +426,11 @@ class Individual (object):
         self.key = m.hexdigest()
 
 
-    def mutate (self, pop, gen, feature_factory):
+    def mutate (self, pop, gen, uow_factory):
         """attempt to mutate the feature set"""
         # constructor pattern
         mutant = self.__class__()
-        mutant.populate(gen, feature_factory.mutate_features(self._feature_set))
+        mutant.populate(gen, uow_factory.mutate_features(self._feature_set))
 
         # add the mutant Individual to the Population, but remove its prior self
         # failure semantics: ignore, mutation rate is approx upper bounds
@@ -366,11 +441,11 @@ class Individual (object):
             return False
 
 
-    def breed (self, pop, gen, mate, feature_factory):
+    def breed (self, pop, gen, mate, uow_factory):
         """breed with a mate to produce a child"""
         # constructor pattern
         child = self.__class__()
-        child.populate(gen, feature_factory.breed_features(self._feature_set, mate._feature_set))
+        child.populate(gen, uow_factory.breed_features(self._feature_set, mate._feature_set))
 
         # add the child Individual to the Population
         # failure semantics: ignore, the count will rebalance over the hash ring
@@ -389,7 +464,7 @@ if __name__=='__main__':
     ff = instantiate_class(uow_name)
 
     # initialize a Population of unique Individuals at generation 0
-    pop = Population(Individual(), uow_name, prefix="/tmp/exelixi")
+    pop = Population(uow_name, "/tmp/exelixi", Individual())
     pop.populate(pop.current_gen)
 
     # iterate N times or until a "good enough" solution is found

@@ -26,7 +26,7 @@ Even so, the basic outline of steps shown here apply in general.
 
 Once you have confirmation that your cluster is running --
 [Elastic Mesos] sends you an email messages with a list of masters and slaves --
-then use <code>ssh</code> to login on any of the masters:
+then use `ssh` to login on any of the masters:
 
     ssh -A -l ubuntu <master-public-ip>
 
@@ -34,7 +34,7 @@ You must install the [Python bindings](https://github.com/apache/mesos/tree/mast
 In this instance the [Apache Mesos] version is *0.14.0-rc4*, so you must install the [Python egg] for that exact release.
 Also, you need to install the <b>Exelixi</b> source.
 
-On the master, download the <code>master</code> branch of the <b>Exelixi</b> code repo on GitHub and install the required libraries:
+On the master, download the `master` branch of the <b>Exelixi</b> code repo on GitHub and install the required libraries:
 
     wget https://github.com/ceteri/exelixi/archive/master.zip ; \
     unzip master.zip ; \
@@ -42,21 +42,21 @@ On the master, download the <code>master</code> branch of the <b>Exelixi</b> cod
     ./bin/local_install.sh
 
 If you've customized the code by forking your own GitHub code repo, then substitute that download URL instead.
-Alternatively, if you've customized by subclassing the <code>uow.UnitOfWorkFactory</code> default [GA],
-then place that Python source file into the <code>src/</code> subdirectory.
+Alternatively, if you've customized by subclassing the `uow.UnitOfWorkFactory` default [GA],
+then place that Python source file into the `src/` subdirectory.
 
 Next, run the installation command on the master, to set up each of the slaves:
 
     ./src/exelixi.py -n localhost:5050 | ./bin/install.sh
 
-Now launch the Framework, which in turn launches the Executors remotely on slave nodes.
-In the following case, it runs on two slave nodes:
+Now launch the Framework, which in turn launches the worker services remotely on slave nodes.
+In the following case, it runs workers on two slave nodes:
 
-    ./src/exelixi.py -m localhost:5050 -e 2
+    ./src/exelixi.py -m localhost:5050 -w 2
 
-Once everything has been set up successfully, the log file in <code>exelixi.log</code> will show a line:
+Once everything has been set up successfully, the log file in `exelixi.log` will show a line:
 
-    all executors launched and init tasks completed
+    all worker services launched and init tasks completed
 
 From there, the [GA] runs.
 See a [GitHub gist](https://gist.github.com/ceteri/7609046) for an example of a successful run.

@@ -17,10 +17,10 @@
 # https://github.com/ceteri/exelixi
 
 
-from exelixi import get_telemetry
 from json import dumps, loads
-from service import Framework, SlaveInfo, Worker
+from service import Framework, Worker, WorkerInfo
 from threading import Thread
+from util import get_telemetry
 from uuid import uuid1
 import logging
 import mesos
@@ -37,7 +37,7 @@ import time
 class MesosScheduler (mesos.Scheduler):
     # https://github.com/apache/mesos/blob/master/src/python/src/mesos.py
 
-    def __init__ (self, executor, exe_path, n_exe, uow_name, prefix, cpu_alloc, mem_alloc):
+    def __init__ (self, executor, exe_path, n_workers, uow_name, prefix, cpu_alloc, mem_alloc):
         self.executor = executor
         self.taskData = {}
         self.tasksLaunched = 0
@@ -52,7 +52,7 @@ class MesosScheduler (mesos.Scheduler):
         # protected members to customize for Exelixi needs
         self._executors = {}
         self._exe_path = exe_path
-        self._n_exe = n_exe
+        self._n_workers = n_workers
         self._uow_name = uow_name
         self._prefix = prefix
 
@@ -95,7 +95,7 @@ class MesosScheduler (mesos.Scheduler):
             ## NB: currently we force 'offer.hostname' to be unique per Executor...
             ## could be changed, but we'd need to juggle the service port numbers
 
-            if self.tasksLaunched < self._n_exe and offer.hostname not in self._executors:
+            if self.tasksLaunched < self._n_workers and offer.hostname not in self._executors:
                 tid = self.tasksLaunched
                 self.tasksLaunched += 1
                 logging.debug("Mesos Scheduler: accepting offer on slave %s to start task %d", offer.hostname, tid)
@@ -120,7 +120,7 @@ class MesosScheduler (mesos.Scheduler):
                 self.taskData[task.task_id.value] = (offer.slave_id, task.executor.executor_id)
 
                 # record and report the Mesos slave node's telemetry and state
-                self._executors[offer.hostname] = SlaveInfo(offer, task)
+                self._executors[offer.hostname] = WorkerInfo(offer, task)
 
                 for exe in self._executors.values():
                     logging.debug(exe.report())
@@ -148,9 +148,9 @@ class MesosScheduler (mesos.Scheduler):
             self.tasksFinished += 1
             slave_id, executor_id = self.taskData[update.task_id.value]
 
-            # update SlaveInfo with telemetry from initial discovery task
+            # update WorkerInfo with telemetry from initial discovery task
             telemetry = loads(str(update.data))
-            logging.info("Mesos Slave: telemetry from slave %s, executor %s\n%s", slave_id.value, executor_id.value, str(update.data))
+            logging.info("telemetry from slave %s, executor %s\n%s", slave_id.value, executor_id.value, str(update.data))
 
             exe = self.lookup_executor(slave_id.value, executor_id.value)
             exe.ip_addr = telemetry["ip_addr"]
@@ -158,8 +158,8 @@ class MesosScheduler (mesos.Scheduler):
             ## NB: TODO make the service port a parameter
             exe.port = Worker.DEFAULT_PORT
 
-            if self.tasksFinished == self._n_exe:
-                logging.info("Mesos Scheduler: %d init tasks completed", self._n_exe)
+            if self.tasksFinished == self._n_workers:
+                logging.info("Mesos Scheduler: %d init tasks completed", self._n_workers)
 
             # request to launch service as a child process
             self.messagesSent += 1
@@ -178,7 +178,7 @@ class MesosScheduler (mesos.Scheduler):
         logging.info("Mesos Scheduler: slave %s executor %s", slaveId.value, executorId.value)
         logging.info("message %d received: %s", self.messagesReceived, str(message))
 
-        if self.messagesReceived == self._n_exe:
+        if self.messagesReceived == self._n_workers:
             if self.messagesReceived != self.messagesSent:
                 logging.critical("Mesos Scheduler: framework messages lost! sent %d received %d", self.messagesSent, self.messagesReceived)
                 sys.exit(1)
@@ -186,16 +186,16 @@ class MesosScheduler (mesos.Scheduler):
             for exe in self._executors.values():
                 logging.debug(exe.report())
 
-            logging.info("all executors launched and init tasks completed")
+            logging.info("all worker services launched and init tasks completed")
             exe_info = self._executors.values()
-            exe_list = [ exe.get_exe_uri() for exe in exe_info ]
+            worker_list = [ exe.get_shard_uri() for exe in exe_info ]
 
-            # run Framework orchestration via REST endpoints on the Executors
+            # run UnitOfWork orchestration via REST endpoints on the workers
             fra = Framework(self._uow_name, self._prefix)
-            fra.set_exe_list(exe_list, exe_info)
+            fra.set_worker_list(worker_list, exe_info)
 
             time.sleep(1)
-            fra.orchestrate()
+            fra.orchestrate_uow()
 
             # shutdown the Executors after the end of an algorithm run
             driver.stop()
@@ -209,7 +209,7 @@ class MesosScheduler (mesos.Scheduler):
 
 
     @staticmethod
-    def start_framework (master_uri, exe_path, n_exe, uow_name, prefix, cpu_alloc, mem_alloc):
+    def start_framework (master_uri, exe_path, n_workers, uow_name, prefix, cpu_alloc, mem_alloc):
         # initialize an executor
         executor = mesos_pb2.ExecutorInfo()
         executor.executor_id.value = uuid1().hex
@@ -232,7 +232,7 @@ class MesosScheduler (mesos.Scheduler):
             framework.checkpoint = True
     
         # create a scheduler and capture the command line options
-        sched = MesosScheduler(executor, exe_path, n_exe, uow_name, prefix, cpu_alloc, mem_alloc)
+        sched = MesosScheduler(executor, exe_path, n_workers, uow_name, prefix, cpu_alloc, mem_alloc)
 
         # initialize a driver
         if os.getenv("MESOS_AUTHENTICATE"):

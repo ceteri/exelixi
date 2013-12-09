@@ -18,72 +18,16 @@
 
 
 from argparse import ArgumentParser
-from collections import OrderedDict
-from json import loads
-from os.path import abspath
 from service import Framework, Worker
-from urllib2 import urlopen, URLError
+from util import get_master_leader, get_master_state, pipe_slave_list
 import logging
-import psutil
-import socket
 import sys
 
 
 ######################################################################
-## globals and utilities
+## globals
 
 APP_NAME = "Exelixi"
-
-
-def get_telemetry ():
-    """get system resource telemetry on a Mesos slave via psutil"""
-    telemetry = OrderedDict()
-
-    telemetry["ip_addr"] = socket.gethostbyname(socket.gethostname())
-
-    telemetry["mem_free"] =  psutil.virtual_memory().free
-
-    telemetry["cpu_num"] = psutil.NUM_CPUS
-
-    x = psutil.cpu_times()
-    telemetry["cpu_times"] = OrderedDict([ ("user", x.user), ("system", x.system), ("idle", x.idle) ])
-
-    x = psutil.disk_usage("/tmp")
-    telemetry["disk_usage"] = OrderedDict([ ("free", x.free), ("percent", x.percent) ])
-
-    x = psutil.disk_io_counters()
-    telemetry["disk_io"] = OrderedDict([ ("read_count", x.read_count), ("write_count", x.write_count), ("read_bytes", x.read_bytes), ("write_bytes", x.write_bytes), ("read_time", x.read_time), ("write_time", x.write_time) ])
-
-    x = psutil.network_io_counters()
-    telemetry["network_io"] = OrderedDict([ ("bytes_sent", x.bytes_sent), ("bytes_recv", x.bytes_recv), ("packets_sent", x.packets_sent), ("packets_recv", x.packets_recv), ("errin", x.errin), ("errout", x.errout), ("dropin", x.dropin), ("dropout", x.dropout) ])
-
-    return telemetry
-
-
-def get_master_state (master_uri):
-    """get current state, represented as JSON, from the Mesos master"""
-    uri = "http://" + master_uri + "/master/state.json"
-
-    try:
-        response = urlopen(uri)
-        return loads(response.read())
-    except URLError as e:
-        logging.critical("could not reach REST endpoint %s error: %s", uri, str(e.reason), exc_info=True)
-        raise
-
-
-def get_master_leader (master_uri):
-    """get the host:port for the Mesos master leader"""
-    state = get_master_state(master_uri)
-    return state["leader"].split("@")[1]
-
-
-def pipe_slave_list (master_uri):
-    """report a list of slave IP addr, one per line to stdout -- for building pipes"""
-    state = get_master_state(get_master_leader(master_uri))
-
-    for s in state["slaves"]:
-        print s["pid"].split("@")[1].split(":")[0] 
 
 
 ######################################################################
@@ -93,33 +37,33 @@ def parse_cli_args ():
     parser = ArgumentParser(prog="Exelixi", usage="one of the operational modes shown below...", add_help=True,
                             description="Exelixi, a distributed framework for genetic algorithms, based on Apache Mesos")
 
-    group1 = parser.add_argument_group("Mesos Framework", "run as a Framework on an Apache Mesos cluster")
+    group1 = parser.add_argument_group("Mesos Framework", "run as a distributed framework on an Apache Mesos cluster")
     group1.add_argument("-m", "--master", metavar="HOST:PORT", nargs=1,
                         help="location for one of the masters")
-    group1.add_argument("-e", "--executors", nargs=1, type=int, default=[1],
-                        help="number of Executors to be launched")
+    group1.add_argument("-w", "--workers", nargs=1, type=int, default=[1],
+                        help="number of workers to be launched")
 
     group1.add_argument("--cpu", nargs=1, type=int, default=[1],
-                        help="CPU allocation per Executor, as CPU count")
+                        help="CPU allocation per worker, as CPU count")
     group1.add_argument("--mem", nargs=1, type=int, default=[32],
-                        help="MEM allocation per Executor, as MB/shard")
+                        help="MEM allocation per worker, as MB/shard")
 
-    group2 = parser.add_argument_group("Standalone Framework", "run as a Framework in standalone mode")
-    group2.add_argument("-s", "--slaves", nargs="+", metavar="HOST:PORT",
-                        help="list of slaves (HOST:PORT) on which to run Executors")
+    group2 = parser.add_argument_group("Mesos Executor", "run as an Apache Mesos executor (using no arguments)")
 
-    group3 = parser.add_argument_group("Mesos Executor", "run as an Apache Mesos executor (using no arguments)")
+    group3 = parser.add_argument_group("Standalone Framework", "run as a test framework in standalone mode")
+    group3.add_argument("-s", "--slaves", nargs="+", metavar="HOST:PORT",
+                        help="list of slaves (HOST:PORT) on which to run workers")
 
-    group4 = parser.add_argument_group("Standalone Executor", "run as an Executor in standalone mode")
+    group4 = parser.add_argument_group("Standalone Worker", "run as a test worker in standalone mode")
     group4.add_argument("-p", "--port", nargs=1, metavar="PORT",
                         help="port number to use for this service")
 
     group5 = parser.add_argument_group("Nodes", "enumerate the slave nodes in an Apache Mesos cluster")
     group5.add_argument("-n", "--nodes", nargs="?", metavar="HOST:PORT",
-                        help="location for one of the masters")
+                        help="location for one of the Apache Mesos masters")
 
     parser.add_argument("--uow", nargs=1, metavar="PKG.CLASS", default=["uow.UnitOfWorkFactory"],
-                        help="subclassed UnitOfWork definitions")
+                        help="subclassed UnitOfWork definition")
 
     parser.add_argument("--prefix", nargs=1, default=["hdfs://exelixi"],
                         help="path prefix for durable storage")
@@ -165,7 +109,7 @@ if __name__=='__main__':
     # handle the different operational modes
     if args.master:
         logging.info("%s: running a Framework atop an Apache Mesos cluster", APP_NAME)
-        logging.info(" ...with master %s and %d executor(s)", args.master[0], args.executors[0])
+        logging.info(" ...with master %s and %d workers(s)", args.master[0], args.workers[0])
 
         for x in opts:
             logging.info(x)
@@ -177,7 +121,7 @@ if __name__=='__main__':
             exe_path = abspath(sys.argv[0])
 
             # run Mesos driver to launch Framework and manage resource offers
-            driver = MesosScheduler.start_framework(master_uri, exe_path, args.executors[0], args.uow[0], args.prefix[0], args.cpu[0], args.mem[0])
+            driver = MesosScheduler.start_framework(master_uri, exe_path, args.workers[0], args.uow[0], args.prefix[0], args.cpu[0], args.mem[0])
             MesosScheduler.stop_framework(driver)
         except ImportError as e:
             logging.critical("Python module 'mesos' has not been installed", exc_info=True)
@@ -190,13 +134,13 @@ if __name__=='__main__':
         for x in opts:
             logging.info(x)
 
-        # run Framework orchestration via REST endpoints on the Executors
+        # run UnitOfWork orchestration via REST endpoints on the workers
         fra = Framework(args.uow[0], args.prefix[0])
-        fra.set_exe_list(args.slaves)
-        fra.orchestrate()
+        fra.set_worker_list(args.slaves)
+        fra.orchestrate_uow()
 
     elif args.port:
-        logging.info("%s: running a service on port %s", APP_NAME, args.port[0])
+        logging.info("%s: running a worker service on port %s", APP_NAME, args.port[0])
 
         try:
             svc = Worker(port=int(args.port[0]))

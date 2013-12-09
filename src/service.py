@@ -17,10 +17,12 @@
 # https://github.com/ceteri/exelixi
 
 
-from gevent import monkey, spawn, wsgi, Greenlet
+from gevent import monkey, shutdown, signal, spawn, wsgi, Greenlet
 from gevent.event import Event
 from gevent.queue import JoinableQueue
+from hashring import HashRing
 from json import dumps, loads
+from signal import SIGQUIT
 from util import instantiate_class, post_distrib_rest
 from uuid import uuid1
 import logging
@@ -41,78 +43,65 @@ class Worker (object):
     def __init__ (self, port=DEFAULT_PORT):
         # REST services
         monkey.patch_all()
-        self.server = wsgi.WSGIServer(('', int(port)), self._response_handler, log=None)
+        signal(SIGQUIT, shutdown)
         self.is_config = False
+        self.server = wsgi.WSGIServer(('', int(port)), self._response_handler, log=None)
 
         # sharding
         self.prefix = None
         self.shard_id = None
         self.ring = None
 
-        # concurrency
-        self.task_event = None
-        self.task_queue = None
+        # concurrency based on message passing / barrier pattern
+        self._task_event = None
+        self._task_queue = None
 
         # UnitOfWork
         self._uow = None
 
 
-    def _get_response_context (self, args):
-        """decode the WSGI response context from the Greenlet args"""
-        env = args[0]
-        msg = env["wsgi.input"].read()
-        payload = loads(msg)
-        start_response = args[1]
-        body = args[2]
-
-        return payload, start_response, body
-
-
-    def _bad_auth (self, payload, start_response, body):
-        """UoW caller did not provide the correct credentials to access this shard"""
-        start_response('403 Forbidden', [('Content-Type', 'text/plain')])
-        body.put('Forbidden\r\n')
-        body.put(StopIteration)
-
-        logging.error("incorrect shard %s prefix %s", payload["shard_id"], payload["prefix"])
-
-
-    def queue_consumer (self):
-        """consume/serve requests until the task_queue empties"""
-        while True:
-            payload = self.task_queue.get()
-
-            try:
-                self._uow.perform_task(payload)
-            finally:
-                self.task_queue.task_done()
-
-
     def shard_start (self):
-        """start the service"""
+        """start the worker service for this shard"""
         self.server.serve_forever()
 
 
     def shard_stop (self, *args, **kwargs):
-        """stop the service"""
+        """stop the worker service for this shard"""
         payload = args[0]
 
         if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
-            logging.info("executor service stopping... you can safely ignore any exceptions that follow")
+            logging.info("worker service stopping... you can safely ignore any exceptions that follow")
             self.server.stop()
         else:
             # returns incorrect response in this case, to avoid exception
             logging.error("incorrect shard %s prefix %s", payload["shard_id"], payload["prefix"])
 
 
+    ######################################################################
+    ## authentication methods
+
+    def auth_request (self, payload, start_response, body):
+        """test the authentication credentials for a REST call"""
+        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+            return True
+        else:
+            # UoW caller did not provide correct credentials to access shard
+            start_response('403 Forbidden', [('Content-Type', 'text/plain')])
+            body.put("Forbidden, incorrect credentials for this shard\r\n")
+            body.put(StopIteration)
+
+            logging.error("incorrect credentials shard %s prefix %s", payload["shard_id"], payload["prefix"])
+            return False
+
+
     def shard_config (self, *args, **kwargs):
         """configure the service to run a shard"""
-        payload, start_response, body = self._get_response_context(args)
+        payload, start_response, body = self.get_response_context(args)
 
         if self.is_config:
             # hey, somebody call security...
             start_response('403 Forbidden', [('Content-Type', 'text/plain')])
-            body.put("Forbidden, executor already in a configured state\r\n")
+            body.put("Forbidden, shard is already in a configured state\r\n")
             body.put(StopIteration)
 
             logging.warning("denied configuring shard %s prefix %s", self.shard_id, self.prefix)
@@ -135,46 +124,81 @@ class Worker (object):
             logging.info("configuring shard %s prefix %s", self.shard_id, self.prefix)
 
 
+    ######################################################################
+    ## barrier pattern methods
+
+    def init_task_event (self):
+        """initialize a gevent.Event, to which the UnitOfWork will wait as a listener"""
+        self._task_event = Event()
+
+
+    def done_task_event (self):
+        """complete a gevent.Event, notifying the UnitOfWork which waited as a listener"""
+        self._task_event.set()
+        self._task_event = None
+
+
+    def _consume_task_queue (self):
+        """consume/serve requests until the task_queue empties"""
+        while True:
+            payload = self._task_queue.get()
+
+            try:
+                self._uow.perform_task(payload)
+            finally:
+                self._task_queue.task_done()
+
+
+    def prep_task_queue (self):
+        """prepare task_queue for another set of distributed tasks"""
+        self._task_queue = JoinableQueue()
+        spawn(self._consume_task_queue)
+
+
+    def put_task_queue (self, payload):
+        """put the given task definition into the task_queue"""
+        self._task_queue.put_nowait(payload)
+
+
     def shard_wait (self, *args, **kwargs):
         """wait until all shards finished sending task_queue requests"""
-        payload, start_response, body = self._get_response_context(args)
+        payload, start_response, body = self.get_response_context(args)
 
-        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
-            if self.task_event:
-                self.task_event.wait()
+        if self.auth_request(payload, start_response, body):
+            if self._task_event:
+                self._task_event.wait()
 
             # HTTP response first, then initiate long-running task
             start_response('200 OK', [('Content-Type', 'text/plain')])
             body.put("Bokay\r\n")
             body.put(StopIteration)
-        else:
-            self._bad_auth(payload, start_response, body)
 
 
     def shard_join (self, *args, **kwargs):
         """join on the task_queue, as a barrier to wait until it empties"""
-        payload, start_response, body = self._get_response_context(args)
+        payload, start_response, body = self.get_response_context(args)
 
-        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+        if self.auth_request(payload, start_response, body):
             start_response('200 OK', [('Content-Type', 'text/plain')])
             body.put("join queue...\r\n")
 
             ## NB: TODO this step of emptying out the task_queue on
             ## shards could take a while on a large run... perhaps use
             ## a long-polling HTTP request or websocket instead?
-            self.task_queue.join()
+            self._task_queue.join()
 
             body.put("done\r\n")
             body.put(StopIteration)
-        else:
-            self._bad_auth(payload, start_response, body)
 
+
+    ######################################################################
+    ## hash ring methods
 
     def ring_init (self, *args, **kwargs):
         """initialize the HashRing"""
-        payload, start_response, body = self._get_response_context(args)
+        payload, start_response, body = self.get_response_context(args)
 
-        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
+        if self.auth_request(payload, start_response, body):
             self.ring = payload["ring"]
 
             start_response('200 OK', [('Content-Type', 'text/plain')])
@@ -182,8 +206,20 @@ class Worker (object):
             body.put(StopIteration)
 
             logging.info("setting hash ring %s", self.ring)
-        else:
-            self._bad_auth(payload, body, start_response)
+
+
+    ######################################################################
+    ## WSGI handler for REST endpoints
+
+    def get_response_context (self, args):
+        """decode the WSGI response context from the Greenlet args"""
+        env = args[0]
+        msg = env["wsgi.input"].read()
+        payload = loads(msg)
+        start_response = args[1]
+        body = args[2]
+
+        return payload, start_response, body
 
 
     def _response_handler (self, env, start_response):
@@ -191,10 +227,13 @@ class Worker (object):
         uri_path = env["PATH_INFO"]
         body = JoinableQueue()
 
+        if self._uow and self._uow.handle_endpoints(self, uri_path, env, start_response, body):
+            pass
+
         ##########################################
         # Worker endpoints
 
-        if uri_path == '/shard/config':
+        elif uri_path == '/shard/config':
             # configure the service to run a shard
             Greenlet(self.shard_config, env, start_response, body).start()
 
@@ -257,9 +296,6 @@ class Worker (object):
             body.put(str(env) + "\r\n")
             body.put(StopIteration)
 
-        elif self._uow and self._uow.handle_endpoints(self, uri_path, env, start_response, body):
-            pass
-
         else:
             # ne znayu
             start_response('404 Not Found', [('Content-Type', 'text/plain')])
@@ -269,115 +305,23 @@ class Worker (object):
         return body
 
 
-    ######################################################################
-    ## NB: TODO refactor GA-specific code into UnitOfWork design pattern
+class WorkerInfo (object):
+    def __init__ (self, offer, task):
+        self.host = offer.hostname
+        self.slave_id = offer.slave_id.value
+        self.task_id = task.task_id.value
+        self.executor_id = task.executor.executor_id.value
+        self.ip_addr = None
+        self.port = None
 
-    def pop_init (self, *args, **kwargs):
-        """initialize a Population of unique Individuals on this shard"""
-        payload, start_response, body = self._get_response_context(args)
-
-        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
-            self._uow.set_ring(self.shard_id, self.ring)
-
-            # prepare task_queue for another set of distributed tasks
-            # WORKER
-            self.task_queue = JoinableQueue()
-            spawn(self.queue_consumer)
-
-            start_response('200 OK', [('Content-Type', 'text/plain')])
-            body.put("Bokay\r\n")
-            body.put(StopIteration)
-        else:
-            self._bad_auth(payload, start_response, body)
+    def get_shard_uri (self):
+        """generate a URI for this worker service"""
+        return self.ip_addr + ":" + self.port
 
 
-    def pop_gen (self, *args, **kwargs):
-        """create generation 0 of Individuals in this shard of the Population"""
-        payload, start_response, body = self._get_response_context(args)
-
-        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
-            # WORKER
-            self.task_event = Event()
-
-            # HTTP response first, then initiate long-running task
-            start_response('200 OK', [('Content-Type', 'text/plain')])
-            body.put("Bokay\r\n")
-            body.put(StopIteration)
-
-            self._uow.populate(0)
-
-            # WORKER
-            self.task_event.set()
-            self.task_event = None
-        else:
-            self._bad_auth(payload, start_response, body)
-
-
-    def pop_hist (self, *args, **kwargs):
-        """calculate a partial histogram for the fitness distribution"""
-        payload, start_response, body = self._get_response_context(args)
-
-        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
-            start_response('200 OK', [('Content-Type', 'application/json')])
-            body.put(dumps({ "total_indiv": self._uow.total_indiv, "hist": self._uow.get_part_hist() }))
-            body.put("\r\n")
-            body.put(StopIteration)
-        else:
-            self._bad_auth(payload, start_response, body)
-
-
-    def pop_next (self, *args, **kwargs):
-        """iterate N times or until a 'good enough' solution is found"""
-        payload, start_response, body = self._get_response_context(args)
-
-        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
-            # WORKER
-            self.task_event = Event()
-
-            # HTTP response first, then initiate long-running task
-            start_response('200 OK', [('Content-Type', 'text/plain')])
-            body.put("Bokay\r\n")
-            body.put(StopIteration)
-
-            current_gen = payload["current_gen"]
-            fitness_cutoff = payload["fitness_cutoff"]
-            self._uow.next_generation(current_gen, fitness_cutoff)
-
-            # WORKER
-            self.task_event.set()
-            self.task_event = None
-        else:
-            self._bad_auth(payload, start_response, body)
-
-
-    def pop_enum (self, *args, **kwargs):
-        """enumerate the Individuals in this shard of the Population"""
-        payload, start_response, body = self._get_response_context(args)
-
-        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
-            fitness_cutoff = payload["fitness_cutoff"]
-
-            start_response('200 OK', [('Content-Type', 'application/json')])
-            body.put(dumps(self._uow.enum(fitness_cutoff)))
-            body.put("\r\n")
-            body.put(StopIteration)
-        else:
-            self._bad_auth(payload, start_response, body)
-
-
-    def pop_reify (self, *args, **kwargs):
-        """test/add a newly generated Individual into the Population (birth)"""
-        payload, start_response, body = self._get_response_context(args)
-
-        if (self.prefix == payload["prefix"]) and (self.shard_id == payload["shard_id"]):
-            # WORKER
-            self.task_queue.put_nowait(payload)
-
-            start_response('200 OK', [('Content-Type', 'text/plain')])
-            body.put("Bokay\r\n")
-            body.put(StopIteration)
-        else:
-            self._bad_auth(payload, start_response, body)
+    def report (self):
+        """report the slave telemetry + state"""
+        return "host %s slave %s task %s exe %s ip %s:%s" % (self.host, self.slave_id, str(self.task_id), self.executor_id, self.ip_addr, self.port)
 
 
 class Framework (object):
@@ -405,33 +349,33 @@ class Framework (object):
         return "shard/" + z + s
 
 
-    def set_exe_list (self, exe_list, exe_info=None):
+    def set_worker_list (self, worker_list, exe_info=None):
         """associate shards with Executors"""
         self._shard_assoc = {}
 
-        for i in xrange(len(exe_list)):
-            shard_id = self._gen_shard_id(i, len(exe_list))
+        for i in xrange(len(worker_list)):
+            shard_id = self._gen_shard_id(i, len(worker_list))
 
             if not exe_info:
-                self._shard_assoc[shard_id] = [exe_list[i], None]
+                self._shard_assoc[shard_id] = [worker_list[i], None]
             else:
-                self._shard_assoc[shard_id] = [exe_list[i], exe_info[i]]
+                self._shard_assoc[shard_id] = [worker_list[i], exe_info[i]]
 
-        logging.info("set executor list: %s", str(self._shard_assoc))
+        logging.info("shard list: %s", str(self._shard_assoc))
 
 
     def send_ring_rest (self, path, base_msg):
         """access a REST endpoint on each of the shards"""
         json_str = []
 
-        for shard_id, (exe_uri, exe_info) in self._shard_assoc.items():
-            lines = post_distrib_rest(self.prefix, shard_id, exe_uri, path, base_msg)
+        for shard_id, (shard_uri, exe_info) in self._shard_assoc.items():
+            lines = post_distrib_rest(self.prefix, shard_id, shard_uri, path, base_msg)
             json_str.append(lines[0])
 
         return json_str
 
 
-    def shard_barrier (self):
+    def phase_barrier (self):
         """
         implements a two-phase barrier to (1) wait until all shards
         have finished sending task_queue requests, then (2) join on
@@ -441,13 +385,12 @@ class Framework (object):
         self.send_ring_rest("shard/join", {})
 
 
-    def orchestrate (self):
-        """orchestrate a unit of work distributed across the hash ring via REST endpoints"""
-
+    def orchestrate_uow (self):
+        """orchestrate a UnitOfWork distributed across the HashRing via REST endpoints"""
         # configure the shards and the hash ring
         self.send_ring_rest("shard/config", { "uow_name": self.uow_name })
 
-        self._ring = { shard_id: exe_uri for shard_id, (exe_uri, exe_info) in self._shard_assoc.items() }
+        self._ring = { shard_id: shard_uri for shard_id, (shard_uri, exe_info) in self._shard_assoc.items() }
         self.send_ring_rest("ring/init", { "ring": self._ring })
 
         # distribute the UnitOfWork tasks
@@ -458,52 +401,49 @@ class Framework (object):
 
 
 class UnitOfWork (object):
-    def set_ring (self, shard_id, ring):
+    def __init__ (self, uow_name, prefix):
+        self.uow_name = uow_name
+        self.uow_factory = instantiate_class(uow_name)
+
+        self.prefix = prefix
+
+        self._shard_id = None
+        self._shard_dict = None
+        self._hash_ring = None
+
+
+    def set_ring (self, shard_id, shard_dict):
         """initialize the HashRing"""
-        pass
+        self._shard_id = shard_id
+        self._shard_dict = shard_dict
+        self._hash_ring = HashRing(shard_dict.keys())
+
 
     def perform_task (self, payload):
         """perform a task consumed from the Worker.task_queue"""
         pass
 
+
     def orchestrate (self, framework):
         """orchestrate Workers via REST endpoints"""
         pass
+
 
     def handle_endpoints (self, worker, uri_path, env, start_response, body):
         """UnitOfWork REST endpoints"""
         pass
 
 
-class SlaveInfo (object):
-    def __init__ (self, offer, task):
-        self.host = offer.hostname
-        self.slave_id = offer.slave_id.value
-        self.task_id = task.task_id.value
-        self.executor_id = task.executor.executor_id.value
-        self.ip_addr = None
-        self.port = None
-
-    def get_exe_uri (self):
-        """generate a URI for the service on this Executor"""
-        return self.ip_addr + ":" + self.port
-
-
-    def report (self):
-        """report the slave telemetry + state"""
-        return "host %s slave %s task %s exe %s ip %s:%s" % (self.host, self.slave_id, str(self.task_id), self.executor_id, self.ip_addr, self.port)
-
-
 if __name__=='__main__':
     if len(sys.argv) < 2:
-        print "usage:\n  %s <host:port> <feature factory>" % (sys.argv[0])
+        print "usage:\n  %s <host:port> <factory>" % (sys.argv[0])
         sys.exit(1)
 
-    exe_uri = sys.argv[1]
+    shard_uri = sys.argv[1]
     uow_name = sys.argv[2]
 
     fra = Framework(uow_name)
     print "framework launching based on %s stored at %s..." % (fra.uow_name, fra.prefix)
 
-    fra.set_exe_list([exe_uri])
-    fra.orchestrate()
+    fra.set_worker_list([ shard_uri ])
+    fra.orchestrate_uow()

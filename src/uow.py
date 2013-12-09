@@ -27,6 +27,8 @@ import logging
 ## class definitions
 
 class UnitOfWorkFactory (object):
+    """encapsulates all of the dependency injection and UnitOfWork definitions"""
+
     def __init__ (self):
         ## NB: override these GA parameters
         self.n_pop = 23
@@ -46,8 +48,8 @@ class UnitOfWorkFactory (object):
 
     def instantiate_uow (self, uow_name, prefix):
         """instantiate a UnitOfWork, to decouple services from the GA problem domain"""
-        ## NB: override this fitness function
-        return Population(Individual(), uow_name, prefix)
+        ## NB: override these class references to customize the GA definition
+        return Population(uow_name, prefix, Individual())
 
 
     def get_fitness (self, feature_set):
