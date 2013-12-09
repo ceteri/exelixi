@@ -19,7 +19,6 @@
 
 from argparse import ArgumentParser
 from collections import OrderedDict
-from ga import APP_NAME
 from json import loads
 from os.path import abspath
 from service import Framework, Worker
@@ -31,7 +30,10 @@ import sys
 
 
 ######################################################################
-## utilities
+## globals and utilities
+
+APP_NAME = "Exelixi"
+
 
 def get_telemetry ():
     """get system resource telemetry on a Mesos slave via psutil"""

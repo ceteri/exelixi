@@ -21,58 +21,18 @@ from bloomfilter import BloomFilter
 from collections import Counter
 from hashlib import sha224
 from hashring import HashRing
-from httplib import BadStatusLine
-from importlib import import_module
 from json import dumps, loads
 from random import random, sample
-from urllib2 import urlopen, Request, URLError
+from service import UnitOfWork
+from util import instantiate_class, post_distrib_rest
 import logging
 import sys
 
 
 ######################################################################
-## globals and utilities
-
-APP_NAME = "Exelixi"
-
-
-def instantiate_class (class_path):
-    """instantiate a class from the given package.class name"""
-    module_name, class_name = class_path.split(".")
-    return getattr(import_module(module_name), class_name)()
-
-
-def post_distrib_rest (prefix, shard_id, exe_uri, path, base_msg):
-    """POST a JSON-based message to a REST endpoint on a shard"""
-    msg = base_msg.copy()
-
-    # populate credentials
-    msg["prefix"] = prefix
-    msg["shard_id"] = shard_id
-
-    # POST to the REST endpoint
-    uri = "http://" + exe_uri + "/" + path
-    req = Request(uri)
-    req.add_header('Content-Type', 'application/json')
-
-    logging.debug("send %s %s", exe_uri, path)
-    logging.debug(dumps(msg))
-
-    # read/collect the response
-    try:
-        f = urlopen(req, dumps(msg))
-        return f.readlines()
-    except URLError as e:
-        logging.critical("could not reach REST endpoint %s error: %s", uri, str(e.reason), exc_info=True)
-        raise
-    except BadStatusLine as e:
-        logging.critical("REST endpoint died %s error: %s", uri, str(e.line), exc_info=True)
-
-
-######################################################################
 ## class definitions
 
-class Population (object):
+class Population (UnitOfWork):
     def __init__ (self, indiv_instance, ff_name, prefix="/tmp/exelixi"):
         self.indiv_class = indiv_instance.__class__
         self.ff_name = ff_name
@@ -160,6 +120,11 @@ class Population (object):
         for x in results:
             # print results to stdout
             print "\t".join(x)
+
+
+    def handle_endpoints (self, worker, uri_path, env, start_response, body):
+        """UnitOfWork REST endpoints"""
+        pass
 
 
     ######################################################################

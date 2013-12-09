@@ -17,12 +17,11 @@
 # https://github.com/ceteri/exelixi
 
 
-from ga import instantiate_class, post_distrib_rest, APP_NAME, Individual, Population
 from gevent import monkey, spawn, wsgi, Greenlet
 from gevent.event import Event
 from gevent.queue import JoinableQueue
 from json import dumps, loads
-from urllib2 import urlopen, Request
+from util import instantiate_class, post_distrib_rest
 from uuid import uuid1
 import logging
 import sys
@@ -188,7 +187,7 @@ class Worker (object):
         ##########################################
         # UnitOfWork endpoints
 
-        if self.endpoint_uow(uri_path, env, start_response, body):
+        if self.handle_endpoints(uri_path, env, start_response, body):
             pass
 
         ##########################################
@@ -269,7 +268,7 @@ class Worker (object):
     ######################################################################
     ## NB: TODO refactor GA-specific code into UnitOfWork design pattern
 
-    def endpoint_uow (self, uri_path, env, start_response, body):
+    def handle_endpoints (self, uri_path, env, start_response, body):
         """UnitOfWork REST endpoints"""
         if uri_path == '/pop/init':
             # initialize the Population subset on this shard
@@ -307,7 +306,8 @@ class Worker (object):
             ff_name = payload["ff_name"]
             logging.info("initializing population based on %s", ff_name)
 
-            self._uow = Population(Individual(), ff_name, self.prefix)
+            ff = instantiate_class(ff_name)
+            self._uow = ff.instantiate_uow(ff_name, self.prefix)
             self._uow.set_ring(self.shard_id, self.ring)
 
             # prepare task_queue for another set of distributed tasks
@@ -414,7 +414,8 @@ class Framework (object):
 
         self._shard_assoc = None
         self._ring = None
-        self._uow = Population(Individual(), ff_name, prefix=self.prefix)
+        ff = instantiate_class(ff_name)
+        self._uow = ff.instantiate_uow(ff_name, self.prefix)
 
 
     def _gen_shard_id (self, i, n):
@@ -476,6 +477,24 @@ class Framework (object):
         self.send_ring_rest("shard/stop", {})
 
 
+class UnitOfWork (object):
+    def set_ring (self, shard_id, ring):
+        """initialize the HashRing"""
+        pass
+
+    def perform_task (self, payload):
+        """perform a task consumed from the Worker.task_queue"""
+        pass
+
+    def orchestrate (self, framework):
+        """orchestrate Workers via REST endpoints"""
+        pass
+
+    def handle_endpoints (self, worker, uri_path, env, start_response, body):
+        """UnitOfWork REST endpoints"""
+        pass
+
+
 class SlaveInfo (object):
     def __init__ (self, offer, task):
         self.host = offer.hostname
@@ -504,7 +523,7 @@ if __name__=='__main__':
     ff_name = sys.argv[2]
 
     fra = Framework(ff_name)
-    print "%s: framework launching at %s based on %s..." % (APP_NAME, fra.prefix, ff_name)
+    print "framework launching at %s based on %s..." % (fra.prefix, ff_name)
 
     fra.set_exe_list([exe_uri])
     fra.orchestrate()

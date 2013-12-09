@@ -17,8 +17,9 @@
 # https://github.com/ceteri/exelixi
 
 
+from ga import Individual, Population
 from random import randint
-from ga import instantiate_class
+from util import instantiate_class
 import logging
 
 
@@ -41,6 +42,12 @@ class FeatureFactory (object):
         self.min = 0
         self.max = 100
         self.target = 231
+
+
+    def instantiate_uow (self, ff_name, prefix):
+        """instantiate a UnitOfWork, so that the services are decoupled from the GA"""
+        ## NB: override this fitness function
+        return Population(Individual(), ff_name, prefix)
 
 
     def get_fitness (self, feature_set):
