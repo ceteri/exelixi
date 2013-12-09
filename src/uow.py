@@ -105,7 +105,7 @@ class UnitOfWorkFactory (object):
                     return ((bin0 * count0) + (bin * count)) / (count0 + count)
 
 
-    def test_termination (self, current_gen, term_limit, hist, total_indiv):
+    def test_termination (self, current_gen, hist, total_indiv):
         """evaluate the terminating condition for this generation and report progress"""
         ## NB: override this termination test
 
@@ -127,7 +127,7 @@ class UnitOfWorkFactory (object):
         logging.debug(filter(lambda x: x[1] > 0, hist.items()))
 
         # stop when a "good enough" solution is found
-        return (fit_mse <= term_limit) or (total_indiv >= self.max_indiv)
+        return (fit_mse <= self.term_limit) or (total_indiv >= self.max_indiv)
 
 
 if __name__=='__main__':

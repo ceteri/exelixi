@@ -383,7 +383,7 @@ class Population (UnitOfWork):
 
     def test_termination (self, current_gen, hist):
         """evaluate the terminating condition for this generation and report progress"""
-        return self.uow_factory.test_termination(current_gen, self.uow_factory.term_limit, hist, self.total_indiv)
+        return self.uow_factory.test_termination(current_gen, hist, self.total_indiv)
 
 
     def enum (self, fitness_cutoff):
