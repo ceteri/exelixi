@@ -461,25 +461,25 @@ if __name__=='__main__':
     else:
         uow_name = sys.argv[1]
 
-    ff = instantiate_class(uow_name)
+    uow_factory = instantiate_class(uow_name)
 
     # initialize a Population of unique Individuals at generation 0
-    pop = Population(uow_name, "/tmp/exelixi", Individual())
-    pop.populate(pop.current_gen)
+    uow = uow_factory.instantiate_uow(uow_name, "/tmp/exelixi")
+    uow.populate(uow.current_gen)
 
     # iterate N times or until a "good enough" solution is found
-    while pop.current_gen < ff.n_gen:
+    while uow.current_gen < uow_factory.n_gen:
         hist = {}
-        pop.aggregate_hist(hist, pop.get_part_hist())
+        uow.aggregate_hist(hist, uow.get_part_hist())
 
-        if pop.test_termination(pop.current_gen, hist):
+        if uow.test_termination(uow.current_gen, hist):
             break
 
-        fitness_cutoff = pop.get_fitness_cutoff(hist)
-        pop.next_generation(pop.current_gen, fitness_cutoff)
+        fitness_cutoff = uow.get_fitness_cutoff(hist)
+        uow.next_generation(uow.current_gen, fitness_cutoff)
 
-        pop.current_gen += 1
+        uow.current_gen += 1
 
     # report summary
-    for x in sorted(pop.enum(fitness_cutoff), reverse=True):
+    for x in sorted(uow.enum(fitness_cutoff), reverse=True):
         print "\t".join(x)
