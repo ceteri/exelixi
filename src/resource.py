@@ -45,14 +45,16 @@ class MesosScheduler (mesos.Scheduler):
         self.messagesSent = 0
         self.messagesReceived = 0
 
-        # these protected members have been customized for Exelixi
+        # resource requirements
+        self._cpu_alloc = cpu_alloc
+        self._mem_alloc = mem_alloc
+
+        # protected members to customize for Exelixi needs
         self._executors = {}
         self._exe_path = exe_path
         self._n_exe = n_exe
         self._ff_name = ff_name
         self._prefix = prefix
-        self._cpu_alloc = cpu_alloc
-        self._mem_alloc = mem_alloc
 
 
     def registered (self, driver, frameworkId, masterInfo):
@@ -144,9 +146,7 @@ class MesosScheduler (mesos.Scheduler):
 
         if update.state == mesos_pb2.TASK_FINISHED:
             self.tasksFinished += 1
-
             slave_id, executor_id = self.taskData[update.task_id.value]
-            self.messagesSent += 1
 
             # update SlaveInfo with telemetry from initial discovery task
             telemetry = loads(str(update.data))
@@ -161,9 +161,8 @@ class MesosScheduler (mesos.Scheduler):
             if self.tasksFinished == self._n_exe:
                 logging.info("Mesos Scheduler: %d init tasks completed", self._n_exe)
 
-            ## NB: TODO launch service from tarball/container instead
-
             # request to launch service as a child process
+            self.messagesSent += 1
             message = str(dumps([ self._exe_path, "-p", exe.port ]))
             driver.sendFrameworkMessage(executor_id, slave_id, message)
 
@@ -176,7 +175,6 @@ class MesosScheduler (mesos.Scheduler):
         """
 
         self.messagesReceived += 1
-
         logging.info("Mesos Scheduler: slave %s executor %s", slaveId.value, executorId.value)
         logging.info("message %d received: %s", self.messagesReceived, str(message))
 
