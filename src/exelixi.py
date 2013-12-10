@@ -18,6 +18,7 @@
 
 
 from argparse import ArgumentParser
+from os.path import abspath
 from service import Framework, Worker
 from util import get_master_leader, get_master_state, pipe_slave_list
 import logging
