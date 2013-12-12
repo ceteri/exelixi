@@ -5,7 +5,7 @@ mostly implemented in Python using [gevent] for high-performance concurrency
 It is intended to run cluster computing jobs (partitioned batch jobs, which include some messaging) in pure Python.
 By default, it runs [genetic algorithms] at scale.
 However, it can handle a broad range of other problem domains by 
-using `--uow` command line option to override the `UnitOfWork` class definition in Python.
+using `--uow` command line option to override the `UnitOfWorkFactory` class definition.
 
 Please see the [project wiki](https://github.com/ceteri/exelixi/wiki) for more details,
 including a [tutorial](https://github.com/ceteri/exelixi/wiki/Tutorial:-Fog-Computing-at-Hella-Scale)
