@@ -1,7 +1,11 @@
 # Exelixi
 
-<b>Exelixi</b> is a distributed framework for running [genetic algorithms] at scale.
-The framework is based on [Apache Mesos] and the code is mostly implemented in Python.
+**Exelixi** is a distributed framework based on [Apache Mesos],
+mostly implemented in Python using [gevent] for high-performance concurrency
+It is intended to run cluster computing jobs (partitioned batch jobs, which include some messaging) in pure Python.
+By default, it runs [genetic algorithms] at scale.
+However, it can handle a broad range of other problem domains by 
+using `--uow` command line option to override the `UnitOfWork` class definition in Python.
 
 Please see the [project wiki](https://github.com/ceteri/exelixi/wiki) for more details,
 including a [tutorial](https://github.com/ceteri/exelixi/wiki/Tutorial:-Fog-Computing-at-Hella-Scale)
@@ -18,7 +22,7 @@ For help with command line options:
 
     ./src/exelixi.py -h
 
-Otherwise, to run at scale, the following steps will help you get <b>Exelixi</b> running on [Apache Mesos].
+Otherwise, to run at scale, the following steps will help you get **Exelixi** running on [Apache Mesos].
 First, launch an [Apache Mesos] cluster.
 The following instructions are based on using the [Elastic Mesos] service,
 which uses Ubuntu Linux servers running on [Amazon AWS].
@@ -32,9 +36,9 @@ then use `ssh` to login on any of the masters:
 
 You must install the [Python bindings](https://github.com/apache/mesos/tree/master/src/python) for [Apache Mesos],
 In this instance the [Apache Mesos] version is *0.14.0-rc4*, so you must install the [Python egg] for that exact release.
-Also, you need to install the <b>Exelixi</b> source.
+Also, you need to install the **Exelixi** source.
 
-On the master, download the `master` branch of the <b>Exelixi</b> code repo on GitHub and install the required libraries:
+On the master, download the `master` branch of the **Exelixi** code repo on GitHub and install the required libraries:
 
     wget https://github.com/ceteri/exelixi/archive/master.zip ; \
     unzip master.zip ; \
@@ -73,3 +77,4 @@ See a [GitHub gist](https://gist.github.com/ceteri/7609046) for an example of a 
 [GA]: http://en.wikipedia.org/wiki/Genetic_algorithm
 [Python egg]: https://wiki.python.org/moin/egg
 [genetic algorithms]: http://en.wikipedia.org/wiki/Genetic_algorithm
+[gevent]: http://www.gevent.org/
