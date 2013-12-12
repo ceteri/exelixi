@@ -18,23 +18,23 @@ To check out the [GA] on a laptop (with Python 2.7 installed), simply run:
 
     ./src/ga.py
 
-For help with command line options:
+Otherwise, to run at scale, the following steps will help you get **Exelixi** running on [Apache Mesos].
+For help in general with command line options:
 
     ./src/exelixi.py -h
 
-Otherwise, to run at scale, the following steps will help you get **Exelixi** running on [Apache Mesos].
-First, launch an [Apache Mesos] cluster.
 The following instructions are based on using the [Elastic Mesos] service,
 which uses Ubuntu Linux servers running on [Amazon AWS].
 Even so, the basic outline of steps shown here apply in general.
 
-Once you have confirmation that your cluster is running --
-[Elastic Mesos] sends you an email messages with a list of masters and slaves --
+First, launch an [Apache Mesos] cluster.
+Once you have confirmation that your cluster is running
+(e.g., [Elastic Mesos] sends you an email messages with a list of masters and slaves)
 then use `ssh` to login on any of the masters:
 
     ssh -A -l ubuntu <master-public-ip>
 
-You must install the [Python bindings](https://github.com/apache/mesos/tree/master/src/python) for [Apache Mesos],
+You must install the [Python bindings](https://github.com/apache/mesos/tree/master/src/python) for [Apache Mesos].
 In this instance the [Apache Mesos] version is *0.14.0-rc4*, so you must install the [Python egg] for that exact release.
 Also, you need to install the **Exelixi** source.
 
