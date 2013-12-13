@@ -26,7 +26,7 @@
 	<key>MasterSheets</key>
 	<array/>
 	<key>ModificationDate</key>
-	<string>2013-12-12 18:20:11 +0000</string>
+	<string>2013-12-13 16:31:53 +0000</string>
 	<key>Modifier</key>
 	<string>Paco Nathan</string>
 	<key>NotesVisible</key>
@@ -5634,7 +5634,7 @@ scheduler}</string>
 					<array>
 						<dict>
 							<key>Bounds</key>
-							<string>{{675, 171}, {18, 297}}</string>
+							<string>{{675, 171}, {18, 270}}</string>
 							<key>Class</key>
 							<string>ShapedGraphic</string>
 							<key>ID</key>
@@ -5659,7 +5659,7 @@ scheduler}</string>
 						</dict>
 						<dict>
 							<key>Bounds</key>
-							<string>{{684, 174.11538461538464}, {18, 290.76923076923072}}</string>
+							<string>{{684, 173.83216783216781}, {18, 264.33566433566438}}</string>
 							<key>Class</key>
 							<string>ShapedGraphic</string>
 							<key>ID</key>
@@ -6228,11 +6228,20 @@ scheduler}</string>
 				</dict>
 				<dict>
 					<key>Bounds</key>
-					<string>{{522, 414}, {99.212600708007812, 42.519683837890625}}</string>
+					<string>{{531, 450}, {99.212600708007812, 42.519683837890625}}</string>
 					<key>Class</key>
 					<string>ShapedGraphic</string>
 					<key>FontInfo</key>
 					<dict>
+						<key>Color</key>
+						<dict>
+							<key>b</key>
+							<string>1</string>
+							<key>g</key>
+							<string>1</string>
+							<key>r</key>
+							<string>1</string>
+						</dict>
 						<key>Font</key>
 						<string>Helvetica</string>
 						<key>Size</key>
@@ -6257,6 +6266,21 @@ scheduler}</string>
 					</array>
 					<key>Shape</key>
 					<string>Rectangle</string>
+					<key>Style</key>
+					<dict>
+						<key>fill</key>
+						<dict>
+							<key>Color</key>
+							<dict>
+								<key>b</key>
+								<string>0.5</string>
+								<key>g</key>
+								<string>0.5</string>
+								<key>r</key>
+								<string>0.5</string>
+							</dict>
+						</dict>
+					</dict>
 					<key>Text</key>
 					<dict>
 						<key>Text</key>
@@ -6265,12 +6289,12 @@ scheduler}</string>
 {\colortbl;\red255\green255\blue255;}
 \pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\qc
 
-\f0\fs20 \cf0 BloomFilter}</string>
+\f0\fs20 \cf1 BloomFilter}</string>
 					</dict>
 				</dict>
 				<dict>
 					<key>Bounds</key>
-					<string>{{521.99998474121094, 360}, {99.212600708007812, 42.519683837890625}}</string>
+					<string>{{530.99998474121094, 360}, {99.212600708007812, 42.519683837890625}}</string>
 					<key>Class</key>
 					<string>ShapedGraphic</string>
 					<key>FontInfo</key>
@@ -6409,30 +6433,6 @@ scheduler}</string>
 					</dict>
 					<key>Text</key>
 					<dict>
-						<key>RTFD</key>
-						<data>
-						BAtzdHJlYW10eXBlZIHoA4QBQISE
-						hBJOU0F0dHJpYnV0ZWRTdHJpbmcA
-						hIQITlNPYmplY3QAhZKEhIQITlNT
-						dHJpbmcBlIQBKwpJbmRpdmlkdWFs
-						hoQCaUkBCpKEhIQMTlNEaWN0aW9u
-						YXJ5AJSEAWkDkoSWlgdOU0NvbG9y
-						hpKEhIQHTlNDb2xvcgCUhAFjA4QC
-						ZmYBAYaShJaWEE5TUGFyYWdyYXBo
-						U3R5bGWGkoSEhBBOU1BhcmFncmFw
-						aFN0eWxlAJSEBENDQFMCAISEhAdO
-						U0FycmF5AJSZDJKEhIQJTlNUZXh0
-						VGFiAJSEAkNmAByGkoSioQA4hpKE
-						oqEAVIaShKKhAHCGkoSioQCBjACG
-						koSioQCBqACGkoSioQCBxACGkoSi
-						oQCB4ACGkoSioQCB/ACGkoSioQCB
-						GAGGkoSioQCBNAGGkoSioQCBUAGG
-						hoEACIQEWzFmXYPNzEw9hpKElpYG
-						TlNGb250hpKEhIQGTlNGb250HpSZ
-						HIQFWzI4Y10GAAAAFAAAAP/+SABl
-						AGwAdgBlAHQAaQBjAGEAhAFmCpsA
-						mwGbAJsAhoaG
-						</data>
 						<key>Text</key>
 						<string>{\rtf1\ansi\ansicpg1252\cocoartf1187\cocoasubrtf400
 \cocoascreenfonts1{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
@@ -6499,30 +6499,6 @@ scheduler}</string>
 					</dict>
 					<key>Text</key>
 					<dict>
-						<key>RTFD</key>
-						<data>
-						BAtzdHJlYW10eXBlZIHoA4QBQISE
-						hBJOU0F0dHJpYnV0ZWRTdHJpbmcA
-						hIQITlNPYmplY3QAhZKEhIQITlNT
-						dHJpbmcBlIQBKwpQb3B1bGF0aW9u
-						hoQCaUkBCpKEhIQMTlNEaWN0aW9u
-						YXJ5AJSEAWkDkoSWlgdOU0NvbG9y
-						hpKEhIQHTlNDb2xvcgCUhAFjA4QC
-						ZmYBAYaShJaWEE5TUGFyYWdyYXBo
-						U3R5bGWGkoSEhBBOU1BhcmFncmFw
-						aFN0eWxlAJSEBENDQFMCAISEhAdO
-						U0FycmF5AJSZDJKEhIQJTlNUZXh0
-						VGFiAJSEAkNmAByGkoSioQA4hpKE
-						oqEAVIaShKKhAHCGkoSioQCBjACG
-						koSioQCBqACGkoSioQCBxACGkoSi
-						oQCB4ACGkoSioQCB/ACGkoSioQCB
-						GAGGkoSioQCBNAGGkoSioQCBUAGG
-						hoEACIQEWzFmXYPNzEw9hpKElpYG
-						TlNGb250hpKEhIQGTlNGb250HpSZ
-						HIQFWzI4Y10GAAAAFAAAAP/+SABl
-						AGwAdgBlAHQAaQBjAGEAhAFmCpsA
-						mwGbAJsAhoaG
-						</data>
 						<key>Text</key>
 						<string>{\rtf1\ansi\ansicpg1252\cocoartf1187\cocoasubrtf400
 \cocoascreenfonts1{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
@@ -6960,7 +6936,7 @@ Factory}</string>
 						<key>ID</key>
 						<integer>67</integer>
 						<key>Info</key>
-						<integer>12</integer>
+						<integer>11</integer>
 					</dict>
 					<key>ID</key>
 					<integer>69</integer>
@@ -6969,11 +6945,11 @@ Factory}</string>
 					<key>OrthogonalBarPoint</key>
 					<string>{0, 0}</string>
 					<key>OrthogonalBarPosition</key>
-					<real>132</real>
+					<real>157.28739929199219</real>
 					<key>Points</key>
 					<array>
-						<string>{342.21260070800781, 364.88976161123264}</string>
-						<string>{522, 424.62992095947266}</string>
+						<string>{342.21260070800781, 424.62992095947266}</string>
+						<string>{531, 471.25983178146271}</string>
 					</array>
 					<key>Style</key>
 					<dict>
@@ -6994,9 +6970,9 @@ Factory}</string>
 					<key>Tail</key>
 					<dict>
 						<key>ID</key>
-						<integer>74</integer>
+						<integer>55</integer>
 						<key>Info</key>
-						<integer>6</integer>
+						<integer>4</integer>
 					</dict>
 				</dict>
 				<dict>
@@ -7016,11 +6992,11 @@ Factory}</string>
 					<key>OrthogonalBarPoint</key>
 					<string>{0, 0}</string>
 					<key>OrthogonalBarPosition</key>
-					<real>143</real>
+					<real>160</real>
 					<key>Points</key>
 					<array>
 						<string>{342.21260070800781, 354.25984867726726}</string>
-						<string>{521.99998474121094, 381.25983178146271}</string>
+						<string>{530.99998474121094, 381.25983178146271}</string>
 					</array>
 					<key>Style</key>
 					<dict>
@@ -7199,7 +7175,7 @@ Factory}</string>
 					<real>13.087399482727051</real>
 					<key>Points</key>
 					<array>
-						<string>{342.21260070800781, 435.25984867726726}</string>
+						<string>{342.21260070800781, 445.88976161123264}</string>
 						<string>{395.78739929199219, 471.25983178146271}</string>
 					</array>
 					<key>Style</key>
@@ -7223,7 +7199,7 @@ Factory}</string>
 						<key>ID</key>
 						<integer>55</integer>
 						<key>Info</key>
-						<integer>5</integer>
+						<integer>6</integer>
 					</dict>
 				</dict>
 				<dict>
@@ -7247,15 +7223,6 @@ Factory}</string>
 					<dict>
 						<key>stroke</key>
 						<dict>
-							<key>Color</key>
-							<dict>
-								<key>b</key>
-								<string>0</string>
-								<key>g</key>
-								<string>0</string>
-								<key>r</key>
-								<string>0</string>
-							</dict>
 							<key>HeadArrow</key>
 							<string>UML2Socket</string>
 							<key>HeadScale</key>
