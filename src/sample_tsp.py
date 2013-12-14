@@ -88,7 +88,7 @@ class TSPFactory (UnitOfWorkFactory):
         if cost1 > 0.0:
             estimate /= 2.0
 
-        #print cost1, cost2, estimate, feature_set
+        print cost1, cost2, estimate, feature_set
         return estimate
 
 
