@@ -1,0 +1,27 @@
+{
+  "files": [
+    "README.md"
+  ],
+  "formats": {
+    "pdf": {
+      "version": false,
+      "index": false,
+      "toc": false
+    },
+    "epub": {
+      "index": false,
+      "toc": false,
+      "epubcheck": false
+    },
+    "mobi": {
+      "index": false,
+      "toc": false
+    },
+    "html": {
+      "index": true,
+      "toc": true
+    }
+  },
+  "theme": "oreillymedia/atlas_tech1c_theme",
+  "title": "exelixi"
+}
