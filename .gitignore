@@ -1,6 +1,7 @@
 **~
 *.py[cod]
 exelixi.log
+.DS_Store
 
 # C extensions
 *.so
