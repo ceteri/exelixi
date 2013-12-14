@@ -466,6 +466,7 @@ if __name__=='__main__':
     # initialize a Population of unique Individuals at generation 0
     uow = uow_factory.instantiate_uow(uow_name, "/tmp/exelixi")
     uow.populate(uow.current_gen)
+    fitness_cutoff = 0
 
     # iterate N times or until a "good enough" solution is found
     while uow.current_gen < uow_factory.n_gen:
