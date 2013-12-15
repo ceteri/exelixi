@@ -83,13 +83,13 @@ class TSPFactory (UnitOfWorkFactory):
         """determine the fitness ranging [0.0, 1.0]; higher is better"""
         #print feature_set
 
-        # 1st component of score: all points were visited?
+        # 1st estimator: all points were visited?
         expected = set(xrange(self.min, self.max + 1))
         observed = set(feature_set)
         cost1 = len(expected - observed) / float(len(expected))
         #print expected, observed, cost1
 
-        # 2nd component of score: travel time was minimized?
+        # 2nd estimator: travel time was minimized?
         total_cost = 0
         worst_case = float(sum(self.route_cost[0])) * 2.0
         x0 = 0
@@ -103,13 +103,13 @@ class TSPFactory (UnitOfWorkFactory):
         #print total_cost, worst_case, cost2
 
         # combine the two estimators into a fitness score
-        estimate = 1.0 - (cost1 + cost2) / 2.0
+        fitness = 1.0 - (cost1 + cost2) / 2.0
 
         if cost1 > 0.0:
-            estimate /= 2.0
+            fitness /= 2.0
 
-        #print cost1, cost2, estimate, feature_set
-        return estimate
+        #print cost1, cost2, fitness, feature_set
+        return fitness
 
 
 if __name__=='__main__':
