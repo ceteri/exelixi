@@ -39,6 +39,9 @@ class TSPFactory (UnitOfWorkFactory):
         self.mutation_rate = 0.02
         self.max_indiv = 20000
 
+        # cost matrix for an example TSP: optimize the bicycling route
+        # for weekend chores in Mountain View for a young Steve Jobs
+
         self.route_meta = ( ( "Home", "secret", 0 ),
                             ( "Piazzas Fine Foods", "3922 Middlefield Rd, Palo Alto, CA 94303", 45 ),
                             ( "Mountain View Public Library", "585 Franklin St, Mountain View, CA 94041", 30 ),
@@ -55,22 +58,39 @@ class TSPFactory (UnitOfWorkFactory):
                             ( 8, 5, 18, 18, 19, 0 )
                             )
 
+        # sampling parameters
+
         self.length = len(self.route_cost) - 1
         self.min = 1
         self.max = self.length
+
+
+    def generate_features (self):
+        """generate a new feature set"""
+        features = []
+        expected = list(xrange(self.min, self.max + 1))
+
+        # sample row indicies in the cost matrix, without replacement
+
+        for _ in xrange(self.length):
+            x = sample(expected, 1)[0]
+            features.append(x)
+            expected.remove(x)
+
+        return features
 
 
     def get_fitness (self, feature_set):
         """determine the fitness ranging [0.0, 1.0]; higher is better"""
         #print feature_set
 
-        ## 1st half of score: all points were visited?
+        ## 1st component of score: all points were visited?
         expected = set(xrange(self.min, self.max + 1))
         observed = set(feature_set)
         cost1 = len(expected - observed) / float(len(expected))
         #print expected, observed, cost1
 
-        ## 2nd half of score: route minimized travel?
+        ## 2nd component of score: route minimized travel?
         total_cost = 0
         worst_case = float(sum(self.route_cost[0])) * 2.0
         x0 = 0
@@ -88,21 +108,8 @@ class TSPFactory (UnitOfWorkFactory):
         if cost1 > 0.0:
             estimate /= 2.0
 
-        print cost1, cost2, estimate, feature_set
+        #print cost1, cost2, estimate, feature_set
         return estimate
-
-
-    def generate_features (self):
-        """generate a new feature set"""
-        features = []
-        expected = list(xrange(self.min, self.max + 1))
-
-        for _ in xrange(self.length):
-            x = sample(expected, 1)[0]
-            features.append(x)
-            expected.remove(x)
-
-        return features
 
 
 if __name__=='__main__':
