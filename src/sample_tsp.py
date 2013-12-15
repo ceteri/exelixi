@@ -41,6 +41,8 @@ class TSPFactory (UnitOfWorkFactory):
 
         # cost matrix for an example TSP: optimize the bicycling route
         # for weekend chores in Mountain View for a young Steve Jobs
+        # tuple definition: (name, addr, duration)
+
         self.route_meta = ( ( "Home", "secret", 0 ),
                             ( "Piazzas Fine Foods", "3922 Middlefield Rd, Palo Alto, CA 94303", 45 ),
                             ( "Mountain View Public Library", "585 Franklin St, Mountain View, CA 94041", 30 ),
@@ -54,7 +56,7 @@ class TSPFactory (UnitOfWorkFactory):
                             ( 14, 19, 0, 2, 3, 19 ),
                             ( 12, 20, 3, 0, 1, 19 ),
                             ( 12, 18, 3, 1, 0, 18 ),
-                            ( 8, 5, 18, 18, 19, 0 )
+                            ( 8, 5, 18, 18, 19, 0 ),
                             )
 
         # sampling parameters
