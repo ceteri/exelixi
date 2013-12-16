@@ -160,7 +160,7 @@ class Worker (object):
         self._task_queue.put_nowait(payload)
 
 
-    def shard_wait (self, *args, **kwargs):
+    def queue_wait (self, *args, **kwargs):
         """wait until all shards finished sending task_queue requests"""
         payload, start_response, body = self.get_response_context(args)
 
@@ -174,7 +174,7 @@ class Worker (object):
             body.put(StopIteration)
 
 
-    def shard_join (self, *args, **kwargs):
+    def queue_join (self, *args, **kwargs):
         """join on the task_queue, as a barrier to wait until it empties"""
         payload, start_response, body = self.get_response_context(args)
 
@@ -248,21 +248,21 @@ class Worker (object):
             body.put("Goodbye\r\n")
             body.put(StopIteration)
 
-        elif uri_path == '/shard/wait':
+        elif uri_path == '/queue/wait':
             # wait until all shards have finished sending task_queue requests
-            Greenlet(self.shard_wait, env, start_response, body).start()
+            Greenlet(self.queue_wait, env, start_response, body).start()
 
-        elif uri_path == '/shard/join':
+        elif uri_path == '/queue/join':
             # join on the task_queue, as a barrier to wait until it empties
-            Greenlet(self.shard_join, env, start_response, body).start()
+            Greenlet(self.queue_join, env, start_response, body).start()
 
-        elif uri_path == '/shard/persist':
+        elif uri_path == '/check/persist':
             ## NB: TODO checkpoint the service state to durable storage
             start_response('200 OK', [('Content-Type', 'text/plain')])
             body.put("Bokay\r\n")
             body.put(StopIteration)
 
-        elif uri_path == '/shard/recover':
+        elif uri_path == '/check/recover':
             ## NB: TODO restart the service, recovering from most recent checkpoint
             start_response('200 OK', [('Content-Type', 'text/plain')])
             body.put("Bokay\r\n")
@@ -381,8 +381,8 @@ class Framework (object):
         have finished sending task_queue requests, then (2) join on
         each task_queue, to wait until it has emptied
         """
-        self.send_ring_rest("shard/wait", {})
-        self.send_ring_rest("shard/join", {})
+        self.send_ring_rest("queue/wait", {})
+        self.send_ring_rest("queue/join", {})
 
 
     def orchestrate_uow (self):
