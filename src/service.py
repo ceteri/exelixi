@@ -237,6 +237,17 @@ class Worker (object):
             # configure the service to run a shard
             Greenlet(self.shard_config, env, start_response, body).start()
 
+        elif uri_path == '/shard/stop':
+            # shutdown the service
+            ## NB: must parse POST data first, to avoid exception
+            payload = loads(env["wsgi.input"].read())
+            Greenlet(self.shard_stop, payload).start_later(1)
+
+            # HTTP response starts later, to avoid deadlock when server stops
+            start_response('200 OK', [('Content-Type', 'text/plain')])
+            body.put("Goodbye\r\n")
+            body.put(StopIteration)
+
         elif uri_path == '/shard/wait':
             # wait until all shards have finished sending task_queue requests
             Greenlet(self.shard_wait, env, start_response, body).start()
@@ -255,17 +266,6 @@ class Worker (object):
             ## NB: TODO restart the service, recovering from most recent checkpoint
             start_response('200 OK', [('Content-Type', 'text/plain')])
             body.put("Bokay\r\n")
-            body.put(StopIteration)
-
-        elif uri_path == '/shard/stop':
-            # shutdown the service
-            ## NB: must parse POST data first, to avoid exception
-            payload = loads(env["wsgi.input"].read())
-            Greenlet(self.shard_stop, payload).start_later(1)
-
-            # HTTP response starts later, to avoid deadlock when server stops
-            start_response('200 OK', [('Content-Type', 'text/plain')])
-            body.put("Goodbye\r\n")
             body.put(StopIteration)
 
         ##########################################
