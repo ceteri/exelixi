@@ -239,11 +239,11 @@ class Worker (object):
 
         elif uri_path == '/shard/stop':
             # shutdown the service
-            ## NB: must parse POST data first, to avoid exception
+            ## NB: must parse POST data specially, to avoid exception
             payload = loads(env["wsgi.input"].read())
             Greenlet(self.shard_stop, payload).start_later(1)
 
-            # HTTP response starts later, to avoid deadlock when server stops
+            # HTTP response starts first, to avoid error after server stops
             start_response('200 OK', [('Content-Type', 'text/plain')])
             body.put("Goodbye\r\n")
             body.put(StopIteration)
