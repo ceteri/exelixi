@@ -17,7 +17,7 @@
 # https://github.com/ceteri/exelixi
 
 
-from bloomfilter import BloomFilter
+from datrie import Trie
 from collections import Counter
 from gevent import Greenlet
 from hashlib import sha224
@@ -25,11 +25,10 @@ from hashring import HashRing
 from json import dumps, loads
 from random import random, sample
 from service import UnitOfWork
+from string import ascii_lowercase
 from util import instantiate_class, post_distrib_rest
 import logging
 import sys
-
-FOO = {}
 
 
 ######################################################################
@@ -44,7 +43,7 @@ class Population (UnitOfWork):
         self.current_gen = 0
 
         self._shard = {}
-        self._bf = BloomFilter(num_bytes=125, num_probes=14, iterable=[])
+        self._trie = Trie(ascii_lowercase)
 
 
     def perform_task (self, payload):
@@ -274,15 +273,11 @@ class Population (UnitOfWork):
 
     def _reify_locally (self, indiv):
         """test/add a newly generated Individual into the Population locally (birth)"""
-        global FOO
-
-        #if not (indiv.key in self._bf):
-        if not (indiv.key in FOO):
-            #self._bf.update([indiv.key])
+        if not (indiv.key in self._trie):
+            self._trie[indiv.key] = 1
             self.total_indiv += 1
-            FOO[indiv.key] = 1
 
-            # potentially the most expensive operation, deferred until remote reification
+            # potentially an expensive operation, deferred until remote reification
             indiv.get_fitness(self.uow_factory, force=True)
             self._shard[indiv.key] = indiv
 
@@ -431,7 +426,7 @@ class Individual (object):
         # create a unique key using a SHA-3 digest of the JSON representing this feature set
         m = sha224()
         m.update(self.get_json_feature_set())
-        self.key = m.hexdigest()
+        self.key = unicode(m.hexdigest())
 
 
     def mutate (self, pop, gen, uow_factory):
