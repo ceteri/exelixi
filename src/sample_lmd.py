@@ -113,7 +113,7 @@ class LMDFactory (UnitOfWorkFactory):
 
 
     def generate_features (self):
-        """generate a new feature set for the lawnmower grid"""
+        """generate a new feature set for a lawnmower drone"""
         rand_len = randint(1, self.length)
         feature_set = []
 
@@ -124,11 +124,13 @@ class LMDFactory (UnitOfWorkFactory):
                 feature_set.append(op)
                 feature_set.append(randint(0, len(self.grid) - 1))
                 feature_set.append(randint(0, len(self.grid) - 1))
+
             elif op == OPS.index("loop"):
                 if len(feature_set) > 2:
                     offset = randint(1, len(feature_set) - 1)
                     feature_set.append(op)
                     feature_set.append(offset)
+
             else:
                 feature_set.append(op)
 
@@ -136,7 +138,7 @@ class LMDFactory (UnitOfWorkFactory):
 
 
     def mutate_features (self, feature_set):
-        """mutate a copy of the given feature set"""
+        """mutate a copy of the given GP program"""
         pos_to_mutate = randint(0, len(feature_set) - 1)
         mutated_feature_set = list(feature_set)
         mutated_feature_set[pos_to_mutate] = randint(self.min, self.max)
@@ -144,7 +146,7 @@ class LMDFactory (UnitOfWorkFactory):
 
 
     def breed_features (self, f_feature_set, m_feature_set):
-        """breed two feature sets to produce a child"""
+        """breed two GP programs to produce a toddler GP program"""
         split = randint(1, min(len(f_feature_set), len(m_feature_set)))
         return f_feature_set[split:] + m_feature_set[:split]
 
@@ -212,7 +214,7 @@ class LMDFactory (UnitOfWorkFactory):
                 #print row
                 terrorists += sum(row)
 
-            fitness = round((self.length - terrorists) / float(self.length), 4)
+            fitness = (self.length - terrorists) / float(self.length)
 
             if len(feature_set) > 5:
                 penalty = len(feature_set) / 10.0
