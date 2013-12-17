@@ -79,6 +79,20 @@ class TSPFactory (UnitOfWorkFactory):
         return features
 
 
+    def mutate_features (self, feature_set):
+        """mutate a copy of the given feature set"""
+        pos_to_mutate = randint(0, len(feature_set) - 1)
+        mutated_feature_set = list(feature_set)
+        mutated_feature_set[pos_to_mutate] = randint(self.min, self.max)
+        return mutated_feature_set
+
+
+    def breed_features (self, f_feature_set, m_feature_set):
+        """breed two feature sets to produce a child"""
+        half = len(f_feature_set) / 2
+        return f_feature_set[half:] + m_feature_set[:half]
+
+
     def get_fitness (self, feature_set):
         """determine the fitness ranging [0.0, 1.0]; higher is better"""
         #print feature_set

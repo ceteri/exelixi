@@ -29,6 +29,8 @@ from util import instantiate_class, post_distrib_rest
 import logging
 import sys
 
+FOO = {}
+
 
 ######################################################################
 ## class definitions
@@ -272,9 +274,13 @@ class Population (UnitOfWork):
 
     def _reify_locally (self, indiv):
         """test/add a newly generated Individual into the Population locally (birth)"""
-        if not indiv.key in self._bf:
-            self._bf.update([indiv.key])
+        global FOO
+
+        #if not (indiv.key in self._bf):
+        if not (indiv.key in FOO):
+            #self._bf.update([indiv.key])
             self.total_indiv += 1
+            FOO[indiv.key] = 1
 
             # potentially the most expensive operation, deferred until remote reification
             indiv.get_fitness(self.uow_factory, force=True)
@@ -351,7 +357,7 @@ class Population (UnitOfWork):
 
     def _select_parents (self, current_gen, fitness_cutoff):
         """select the parents for the next generation"""
-        partition = map(lambda x: (round(x.get_fitness(), self.uow_factory.hist_granularity) >= fitness_cutoff, x), self._shard.values())
+        partition = map(lambda x: (round(x.get_fitness(), self.uow_factory.hist_granularity) > fitness_cutoff, x), self._shard.values())
         good_fit = map(lambda x: x[1], filter(lambda x: x[0], partition))
         poor_fit = map(lambda x: x[1], filter(lambda x: not x[0], partition))
 
@@ -372,6 +378,8 @@ class Population (UnitOfWork):
             success = f.breed(self, current_gen, m, self.uow_factory)
 
         # backfill to replenish / avoid the dreaded Population collapse
+        new_count = 0
+
         for _ in xrange(self.uow_factory.n_pop - len(self._shard.values())):
             # constructor pattern
             indiv = self.indiv_class()
