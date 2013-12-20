@@ -156,15 +156,13 @@ class Population (UnitOfWork):
         payload, start_response, body = worker.get_response_context(args[1:])
 
         if worker.auth_request(payload, start_response, body):
-            worker.init_task_event()
+            with worker.wrap_task_event():
+                # HTTP response first, then initiate long-running task
+                start_response('200 OK', [('Content-Type', 'text/plain')])
+                body.put("Bokay\r\n")
+                body.put(StopIteration)
 
-            # HTTP response first, then initiate long-running task
-            start_response('200 OK', [('Content-Type', 'text/plain')])
-            body.put("Bokay\r\n")
-            body.put(StopIteration)
-
-            self.populate(0)
-            worker.done_task_event()
+                self.populate(0)
 
 
     def pop_hist (self, *args, **kwargs):
@@ -185,18 +183,15 @@ class Population (UnitOfWork):
         payload, start_response, body = worker.get_response_context(args[1:])
 
         if worker.auth_request(payload, start_response, body):
-            worker.init_task_event()
+            with worker.wrap_task_event():
+                # HTTP response first, then initiate long-running task
+                start_response('200 OK', [('Content-Type', 'text/plain')])
+                body.put("Bokay\r\n")
+                body.put(StopIteration)
 
-            # HTTP response first, then initiate long-running task
-            start_response('200 OK', [('Content-Type', 'text/plain')])
-            body.put("Bokay\r\n")
-            body.put(StopIteration)
-
-            current_gen = payload["current_gen"]
-            fitness_cutoff = payload["fitness_cutoff"]
-            self.next_generation(current_gen, fitness_cutoff)
-
-            worker.done_task_event()
+                current_gen = payload["current_gen"]
+                fitness_cutoff = payload["fitness_cutoff"]
+                self.next_generation(current_gen, fitness_cutoff)
 
 
     def pop_enum (self, *args, **kwargs):

@@ -17,6 +17,7 @@
 # https://github.com/ceteri/exelixi
 
 
+from contextlib import contextmanager
 from gevent import monkey, shutdown, signal, spawn, wsgi, Greenlet
 from gevent.event import Event
 from gevent.queue import JoinableQueue
@@ -127,13 +128,13 @@ class Worker (object):
     ######################################################################
     ## barrier pattern methods
 
-    def init_task_event (self):
+    @contextmanager
+    def wrap_task_event (self):
         """initialize a gevent.Event, to which the UnitOfWork will wait as a listener"""
         self._task_event = Event()
+        yield
 
-
-    def done_task_event (self):
-        """complete a gevent.Event, notifying the UnitOfWork which waited as a listener"""
+        # complete the Event, notifying the UnitOfWork which waited
         self._task_event.set()
         self._task_event = None
 
