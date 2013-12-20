@@ -7,8 +7,10 @@ echo "installing Python/Mesos..."
 sudo aptitude -y install python-setuptools
 sudo aptitude -y install python-protobuf
 sudo aptitude -y install python-gevent
-sudo aptitude -y install python-datrie
 sudo aptitude -y install python-psutil 
+sudo aptitude -y install python-dev
+sudo aptitude -y install python-pip
+sudo pip install datrie
 
 rm -rf $EGG
 wget http://downloads.mesosphere.io/master/ubuntu/13.10/$EGG
