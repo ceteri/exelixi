@@ -23,6 +23,7 @@ from gevent import Greenlet
 from hashlib import sha224
 from hashring import HashRing
 from json import dumps, loads
+from monoids import dictm
 from random import random, sample
 from service import UnitOfWork
 from string import ascii_lowercase
@@ -76,17 +77,19 @@ class Population (UnitOfWork):
                 logging.debug(shard_msg)
                 payload = loads(shard_msg)
                 self.total_indiv += payload["total_indiv"]
-                self.aggregate_hist(hist, payload["hist"])
+                hist = dictm.fold([hist, payload["hist"]])
 
             # test for the terminating condition
-            if self.test_termination(self.current_gen, hist):
+            hist_items = map(lambda x: (float(x[0]), x[1],), sorted(hist.items(), reverse=True))
+
+            if self.test_termination(self.current_gen, hist_items):
                 break
 
             ## NB: TODO save Framework state to Zookeeper
 
-            # apply fitness cutoff and breed "children" for the next
-            # generation
-            fitness_cutoff = self.get_fitness_cutoff(hist)
+            # apply the fitness cutoff and breed "children" for the
+            # next generation
+            fitness_cutoff = self.get_fitness_cutoff(hist_items)
             framework.send_ring_rest("pop/next", { "current_gen": self.current_gen, "fitness_cutoff": fitness_cutoff })
             self.current_gen += 1
 
@@ -294,31 +297,18 @@ class Population (UnitOfWork):
     def get_part_hist (self):
         """tally counts for the partial histogram of the fitness distribution"""
         l = [ round(indiv.get_fitness(self.uow_factory, force=False), self.uow_factory.hist_granularity) for indiv in self._shard.values() ]
-        d = (Counter(l)).items()
-        d.sort(reverse=True)
-        return d
+        return dict(Counter(l))
 
 
-    def aggregate_hist (self, hist, shard_hist):
-        """aggregate the values of a shard's partial histogram into the full histogram"""
-        for key, val in shard_hist:
-            if key not in hist:
-                hist[key] = val
-            else:
-                hist[key] += val
-
-
-    def get_fitness_cutoff (self, hist):
+    def get_fitness_cutoff (self, hist_items):
         """determine fitness cutoff (bin lower bounds) for the parent selection filter"""
-        h = hist.items()
-        h.sort(reverse=True)
-        logging.debug("fit: %s", h)
+        logging.debug("fit: %s", hist_items)
 
-        n_indiv = sum([ count for bin, count in h ])
+        n_indiv = sum([ count for bin, count in hist_items ])
         part_sum = 0
         break_next = False
 
-        for bin, count in h:
+        for bin, count in hist_items:
             if break_next:
                 break
 
@@ -468,13 +458,13 @@ if __name__=='__main__':
 
     # iterate N times or until a "good enough" solution is found
     while uow.current_gen < uow_factory.n_gen:
-        hist = {}
-        uow.aggregate_hist(hist, uow.get_part_hist())
+        hist = uow.get_part_hist()
+        hist_items = map(lambda x: (float(x[0]), x[1],), sorted(hist.items(), reverse=True))
 
-        if uow.test_termination(uow.current_gen, hist):
+        if uow.test_termination(uow.current_gen, hist_items):
             break
 
-        fitness_cutoff = uow.get_fitness_cutoff(hist)
+        fitness_cutoff = uow.get_fitness_cutoff(hist_items)
         uow.next_generation(uow.current_gen, fitness_cutoff)
 
         uow.current_gen += 1

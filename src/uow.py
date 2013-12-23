@@ -105,26 +105,25 @@ class UnitOfWorkFactory (object):
                     return ((bin0 * count0) + (bin * count)) / (count0 + count)
 
 
-    def test_termination (self, current_gen, hist, total_indiv):
+    def test_termination (self, current_gen, hist_items, total_indiv):
         """evaluate the terminating condition for this generation and report progress"""
         ## NB: override this termination test
 
         # calculate a mean squared error (MSE) of fitness for a Population
-        hist_items = sorted(hist.items(), reverse=True)
-
+        hist_keys = map(lambda x: x[0], hist_items)
         n_indiv = sum([ count for bin, count in hist_items ])
-        fit_mse = sum([ count * (1.0 - bin) ** 2.0 for bin, count in hist_items ]) / float(n_indiv)
+        fit_mse = sum([ count * (1.0 - float(bin)) ** 2.0 for bin, count in hist_items ]) / float(n_indiv)
 
         # calculate summary stats
-        fit_max = max(hist.keys())
-        fit_avg = sum(hist.keys()) / float(n_indiv)
+        fit_max = max(hist_keys)
+        fit_avg = sum(hist_keys) / float(n_indiv)
         fit_med = self._calc_median_hist(hist_items, n_indiv)
 
         # report the progress for one generation
         gen_report = "gen\t%d\tsize\t%d\ttotal\t%d\tmse\t%.2e\tmax\t%.2e\tmed\t%.2e\tavg\t%.2e" % (current_gen, n_indiv, total_indiv, fit_mse, fit_max, fit_med, fit_avg)
         print gen_report
         logging.info(gen_report)
-        logging.debug(filter(lambda x: x[1] > 0, hist.items()))
+        logging.debug(filter(lambda x: x[1] > 0, hist_items))
 
         # stop when a "good enough" solution is found
         return (fit_mse <= self.term_limit) or (total_indiv >= self.max_indiv)
