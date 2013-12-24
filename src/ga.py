@@ -17,7 +17,7 @@
 # https://github.com/ceteri/exelixi
 
 
-from datrie import Trie
+from hat_trie import Trie
 from collections import Counter
 from gevent import Greenlet
 from hashlib import sha224

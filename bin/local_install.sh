@@ -10,7 +10,7 @@ sudo aptitude -y install python-gevent
 sudo aptitude -y install python-psutil 
 sudo aptitude -y install python-dev
 sudo aptitude -y install python-pip
-sudo pip install datrie
+sudo pip install git+https://github.com/kmike/hat-trie.git#egg=hat-trie
 
 rm -rf $EGG
 wget http://downloads.mesosphere.io/master/ubuntu/13.10/$EGG
