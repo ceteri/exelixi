@@ -35,10 +35,14 @@ then use `ssh` to login on any of the masters:
     ssh -A -l ubuntu <master-public-ip>
 
 You must install the [Python bindings](https://github.com/apache/mesos/tree/master/src/python) for [Apache Mesos].
-In this instance the [Apache Mesos] version is *0.14.0-rc4*, so you must install the [Python egg] for that exact release.
+The default version of Mesos changes in this code as there are updates to [Elastic Mesos](https://elastic.mesosphere.io/),
+since the tutorials are based on that service.
+You can check [http://mesosphere.io/downloads/](http://mesosphere.io/downloads/) for the latest.
+If you run Mesos in different environment, 
+simply make a one-line change to the `EGG` environment variable in the `bin/local_install.sh` script.
 Also, you need to install the **Exelixi** source.
 
-On the master, download the `master` branch of the **Exelixi** code repo on GitHub and install the required libraries:
+On the Mesos master, download the `master` branch of the **Exelixi** code repo on GitHub and install the required libraries:
 
     wget https://github.com/ceteri/exelixi/archive/master.zip ; \
     unzip master.zip ; \
