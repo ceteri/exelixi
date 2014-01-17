@@ -15,7 +15,7 @@ import sys
 ## class definitions
 
 class Container (object):
-    """Container for a scikit-learn UnitOfWork"""
+    """Container for a distrib Py UnitOfWork"""
 
     def __init__ (self):
         """constructor"""
@@ -39,21 +39,21 @@ class Container (object):
         return self.Result(93, 11)
 
 
-class SklearnFactory (UnitOfWorkFactory):
-    """UnitOfWorkFactory definition for scikit-learn jobs"""
+class ContainerUOWFactory (UnitOfWorkFactory):
+    """UnitOfWorkFactory definition for distrib Py jobs"""
 
     def __init__ (self):
         #super(UnitOfWorkFactory, self).__init__()
         pass
 
     def instantiate_uow (self, uow_name, prefix):
-        return Sklearn(uow_name, prefix, Container())
+        return ContainerUOW(uow_name, prefix, Container())
 
 
-class Sklearn (UnitOfWork):
-    """UnitOfWork definition for scikit-learn jobs"""
+class ContainerUOW (UnitOfWork):
+    """UnitOfWork definition for distrib Py jobs"""
     def __init__ (self, uow_name, prefix, container):
-        super(Sklearn, self).__init__(uow_name, prefix)
+        super(ContainerUOW, self).__init__(uow_name, prefix)
         self._shard = {}
 
         self._container = container
