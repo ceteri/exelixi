@@ -39,6 +39,8 @@ class Population (UnitOfWork):
     def __init__ (self, uow_name, prefix, indiv_instance):
         super(Population, self).__init__(uow_name, prefix)
 
+        logging.debug("INIT POPULATION")
+
         self.indiv_class = indiv_instance.__class__
         self.total_indiv = 0
         self.current_gen = 0

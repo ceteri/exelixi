@@ -365,6 +365,22 @@ class Framework (object):
         logging.info("shard list: %s", str(self._shard_assoc))
 
 
+    def get_worker_list (self):
+        """generator for the worker shards"""
+        for shard_id, (shard_uri, exe_info) in self._shard_assoc.items():
+            yield shard_id, shard_uri
+
+
+    def get_worker_count (self):
+        """count the worker shards"""
+        return len(self._shard_assoc)
+
+
+    def send_worker_rest (self, shard_id, shard_uri, path, base_msg):
+        """access a REST endpoint on the specified shard"""
+        return post_distrib_rest(self.prefix, shard_id, shard_uri, path, base_msg)
+
+
     def send_ring_rest (self, path, base_msg):
         """access a REST endpoint on each of the shards"""
         json_str = []

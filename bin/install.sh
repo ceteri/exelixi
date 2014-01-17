@@ -5,7 +5,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # build a tarball/container for the Executor
 
 rm -rf /tmp/exelixi.tgz
-tar cvzf /tmp/exelixi.tgz ../exelixi-master/bin ../exelixi-master/src
+tar cvzf /tmp/exelixi.tgz ../exelixi-master/bin ../exelixi-master/src ../exelixi-master/dat
 
 # distribute tarball/container to the Mesos slaves via HDFS
 
