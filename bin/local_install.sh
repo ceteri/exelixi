@@ -11,12 +11,9 @@ sudo aptitude -y install python-psutil
 sudo aptitude -y install python-dev
 sudo aptitude -y install python-pip
 
+sudo aptitude -y install git
 sudo pip install cython
 sudo pip install git+https://github.com/kmike/hat-trie.git#egg=hat-trie
-
-sudo aptitude -y install build-essential python-numpy python-scipy libatlas-dev libatlas3-base
-sudo pip install scikit-learn
-sudo pip install pandas
 
 rm -rf $EGG
 wget http://downloads.mesosphere.io/master/ubuntu/13.10/$EGG

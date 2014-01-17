@@ -22,4 +22,10 @@ do
   echo $slave
   ssh $slave 'bash -s' < $DIR/local_install.sh
   ssh $slave 'bash -s' < $DIR/local_deploy.sh
+
+  if [ ! -z $1 ]
+  then
+    # optional job-specific installations
+    ssh $slave 'bash -s' < $1
+  fi
 done
